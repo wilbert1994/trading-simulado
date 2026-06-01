@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: trading-simulado
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/index.js
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: FIREBASE_DATABASE_URL
+        value: https://inversion-simulada-default-rtdb.firebaseio.com
+      - key: FIREBASE_API_KEY
+        value: AIzaSyCTMbDqF_IGkFamez6GSXUwDKVU0igsuxA
+      - key: INITIAL_BALANCE
+        value: 2000
+      - key: SYMBOLS
+        value: BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT
+      - key: BINANCE_REST_URL
+        value: https://fapi.binance.com

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trading Simulado - Binance Futures</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h1 class="logo">Trading Simulado</h1>
+        <span class="badge">Binance Futures</span>
+      </div>
+      <div class="header-right">
+        <div class="status-indicator" id="connectionStatus">
+          <span class="dot"></span>
+          <span id="statusText">Conectando...</span>
+        </div>
+        <button class="btn btn-danger" id="btnReset" onclick="resetSimulator()">Reiniciar Simulador</button>
+      </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="main-grid">
+      <!-- Portfolio Card -->
+      <div class="card portfolio-card">
+        <div class="card-header">Portafolio</div>
+        <div class="card-body">
+          <div class="portfolio-balance">
+            <span class="label">Balance</span>
+            <span class="value" id="balance">$0.00</span>
+          </div>
+          <div class="portfolio-row">
+            <div class="portfolio-item">
+              <span class="label">Inicial</span>
+              <span class="value small" id="initialBalance">$0.00</span>
+            </div>
+            <div class="portfolio-item">
+              <span class="label">P&L Total</span>
+              <span class="value small" id="totalPnl">$0.00</span>
+            </div>
+            <div class="portfolio-item">
+              <span class="label">%</span>
+              <span class="value small" id="totalPnlPercent">0.00%</span>
+            </div>
+          </div>
+          <div class="portfolio-row">
+            <div class="portfolio-item">
+              <span class="label">Margen usado</span>
+              <span class="value small" id="usedMargin">$0.00</span>
+            </div>
+            <div class="portfolio-item">
+              <span class="label">Disponible</span>
+              <span class="value small" id="availableBalance">$0.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- New Trade Card -->
+      <div class="card trade-form-card">
+        <div class="card-header">Nueva Operación</div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Símbolo</label>
+              <select id="tradeSymbol">
+                <option>BTCUSDT</option>
+                <option>ETHUSDT</option>
+                <option>1000PEPEUSDT</option>
+                <option>WIFUSDT</option>
+                <option>1000BONKUSDT</option>
+                <option>1000FLOKIUSDT</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Dirección</label>
+              <div class="side-buttons">
+                <button class="btn btn-long active" id="btnLong" disabled>LONG ONLY</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Invertir (USDT)</label>
+              <input type="number" id="tradeUsdt" step="10" min="10" value="200" placeholder="200">
+            </div>
+            <div class="form-group">
+              <label>Apalancamiento</label>
+              <input type="number" id="tradeLeverage" step="1" min="1" max="125" value="10" placeholder="10x">
+            </div>
+          </div>
+          <div class="trade-estimate">
+            <span class="label">Margen estimado:</span>
+            <span class="value" id="estMargin">--</span>
+          </div>
+          <button class="btn btn-primary btn-block" onclick="openTrade()">Abrir Operación</button>
+        </div>
+      </div>
+
+      <!-- Price Tickers -->
+      <div class="card tickers-card">
+        <div class="card-header">Precios en Tiempo Real</div>
+        <div class="card-body" id="tickersContainer">
+          <div class="loader">Cargando precios...</div>
+        </div>
+      </div>
+
+      <!-- Strategy Log -->
+      <div class="card log-card">
+        <div class="card-header">Log de Estrategia</div>
+        <div class="card-body log-body" id="logContainer">
+          <div class="empty-state">Esperando inicio de estrategia...</div>
+        </div>
+      </div>
+
+      <!-- Open Positions -->
+      <div class="card positions-card">
+        <div class="card-header">
+          Posiciones Abiertas
+          <button class="btn btn-sm" onclick="closeAllPositions()" id="btnCloseAll" style="display:none">Cerrar Todas</button>
+        </div>
+        <div class="card-body" id="positionsContainer">
+          <div class="empty-state">No hay posiciones abiertas</div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="card chart-card">
+        <div class="card-header">
+          Gráfico de Balance
+          <select id="chartSymbol" onchange="updateChart()">
+            <option value="portfolio">Portafolio</option>
+          </select>
+        </div>
+        <div class="card-body chart-body">
+          <canvas id="balanceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Trade History -->
+      <div class="card history-card">
+        <div class="card-header">Historial de Operaciones</div>
+        <div class="card-body" id="historyContainer">
+          <table class="trade-table">
+            <thead>
+              <tr>
+                <th>Símbolo</th>
+                <th>Lado</th>
+                <th>Entrada</th>
+                <th>Salida</th>
+                <th>Cant.</th>
+                <th>P&L</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody id="tradeHistoryBody">
+              <tr><td colspan="7" class="empty-state">Sin operaciones</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Strategy Control -->
+      <div class="card strategy-card">
+        <div class="card-header">Estrategia Automática</div>
+        <div class="card-body">
+          <p class="text-muted">Estrategia de cruce de medias móviles (SMA 10/20). Opera automáticamente con el 10% del balance por señal.</p>
+          <div class="btn-group">
+            <button class="btn btn-success" id="btnStartStrategy" onclick="toggleStrategy('start')">Iniciar Estrategia</button>
+            <button class="btn btn-warning" id="btnStopStrategy" onclick="toggleStrategy('stop')" disabled>Detener</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/firebase-init.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "inversion-simulada-binance",
+  "version": "1.0.0",
+  "description": "Simulador de trading en Binance Futures con Firebase Realtime",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "deploy": "firebase deploy --only hosting,database"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "uuid": "^10.0.0"
+  }
+}

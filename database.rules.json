@@ -1,0 +1,9 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": true,
+    "portfolio": {
+      ".validate": "newData.hasChildren(['balance', 'initialBalance', 'totalPnl', 'totalPnlPercent', 'openPositions', 'lastUpdated'])"
+    }
+  }
+}
