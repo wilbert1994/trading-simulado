@@ -5,7 +5,7 @@ const { set, get } = require('./firebase');
 const REST_URL = 'https://fapi.binance.com';
 const CG_URL = 'https://api.coingecko.com/api/v3';
 const WS_URL = 'wss://stream.binance.com:9443/stream';
-const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT,MOODENGUSDT,PENGUUSDT,MEMEUSDT,BRETTUSDT,TURBOUSDT,1000CHEEMSUSDT,MEWUSDT,DOGEUSDT,1000LUNCUSDT,1000RATSUSDT,COWUSDT,NEIROUSDT,SWARMSUSDT')
+const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT,MOODENGUSDT,PENGUUSDT,MEMEUSDT,BRETTUSDT,TURBOUSDT,1000CHEEMSUSDT,MEWUSDT,DOGEUSDT,1000LUNCUSDT,1000RATSUSDT,COWUSDT,NEIROUSDT,SWARMSUSDT,IOUSDT,ZKUSDT,1000XECUSDT,REZUSDT,ENAUSDT,STRKUSDT,LISTAUSDT,BOMEUSDT,USUALUSDT,1000SHIBUSDT,1000SATSUSDT,AIXBTUSDT,AVAAIUSDT,TRUMPUSDT,PEOPLEUSDT,GOATUSDT,PNUTUSDT,BIOUSDT,POPCATUSDT,MELANIAUSDT,BANUSDT,NOTUSDT,WUSDT')
   .split(',')
   .map(s => s.trim().toUpperCase());
 
@@ -61,22 +61,26 @@ function scheduleReconnect() {
 
 async function fetchFromBinance() {
   try {
-    const results = await Promise.all(symbols.map(async (sym) => {
-      try {
-        const t = await httpGet(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${sym}`, 4000);
-        if (!t.lastPrice || t.code) return null;
-        return { sym, price: parseFloat(t.lastPrice), change24h: parseFloat(t.priceChangePercent || 0),
-          high24h: parseFloat(t.highPrice || 0), low24h: parseFloat(t.lowPrice || 0),
-          volume24h: parseFloat(t.quoteVolume || 0), bid: parseFloat(t.bidPrice || 0),
-          ask: parseFloat(t.askPrice || 0) };
-      } catch { return null; }
-    }));
     let ok = 0;
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
-        const d = r.value; priceCache[d.sym] = { ...d, timestamp: Date.now() };
-        set(`prices/${d.sym}`, priceCache[d.sym]).catch(() => {});
-        ok++;
+    // Batch in groups of 10 to avoid rate limiting
+    for (let i = 0; i < symbols.length; i += 10) {
+      const batch = symbols.slice(i, i + 10);
+      const results = await Promise.all(batch.map(async (sym) => {
+        try {
+          const t = await httpGet(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${sym}`, 4000);
+          if (!t.lastPrice || t.code) return null;
+          return { sym, price: parseFloat(t.lastPrice), change24h: parseFloat(t.priceChangePercent || 0),
+            high24h: parseFloat(t.highPrice || 0), low24h: parseFloat(t.lowPrice || 0),
+            volume24h: parseFloat(t.quoteVolume || 0), bid: parseFloat(t.bidPrice || 0),
+            ask: parseFloat(t.askPrice || 0) };
+        } catch { return null; }
+      }));
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) {
+          const d = r.value; priceCache[d.sym] = { ...d, timestamp: Date.now() };
+          set(`prices/${d.sym}`, priceCache[d.sym]).catch(() => {});
+          ok++;
+        }
       }
     }
     if (ok > 0) console.log(`[Binance] ${ok}/${symbols.length}`);
