@@ -1,3 +1,4 @@
+const fetch = require('node-fetch');
 const API_KEY = process.env.FIREBASE_API_KEY || '';
 const DB_URL = process.env.FIREBASE_DATABASE_URL || '';
 
