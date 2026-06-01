@@ -15,7 +15,7 @@ function fmtX(n){return parseFloat(n).toLocaleString('en-US',{minimumFractionDig
 function sendReq(d){db.ref('tradeRequests').push({...d,status:'pending',timestamp:Date.now()})}
 
 // ===== TOP BAR TICKERS =====
-const TOP_SYMBOLS = ['BTCUSDT','ETHUSDT','1000PEPEUSDT','WIFUSDT','1000BONKUSDT','1000FLOKIUSDT','MOODENGUSDT','PENGUUSDT','MEMEUSDT','BRETTUSDT','TURBOUSDT','1000CHEEMSUSDT','MEWUSDT','DOGEUSDT'];
+const TOP_SYMBOLS = ['BTCUSDT','ETHUSDT','1000PEPEUSDT','WIFUSDT','1000BONKUSDT','1000FLOKIUSDT','MOODENGUSDT','PENGUUSDT','MEMEUSDT','BRETTUSDT','TURBOUSDT','1000CHEEMSUSDT','MEWUSDT','DOGEUSDT','1000LUNCUSDT','1000RATSUSDT','COWUSDT','NEIROUSDT','SWARMSUSDT'];
 
 function renderTopTickers(prices){
   let h='';

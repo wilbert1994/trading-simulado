@@ -5,7 +5,7 @@ const { set } = require('./firebase');
 const REST_URL = 'https://fapi.binance.com';
 const CG_URL = 'https://api.coingecko.com/api/v3';
 const WS_URL = 'wss://stream.binance.com:9443/stream';
-const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT,MOODENGUSDT,PENGUUSDT,MEMEUSDT,BRETTUSDT,TURBOUSDT,1000CHEEMSUSDT,MEWUSDT,DOGEUSDT')
+const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT,MOODENGUSDT,PENGUUSDT,MEMEUSDT,BRETTUSDT,TURBOUSDT,1000CHEEMSUSDT,MEWUSDT,DOGEUSDT,1000LUNCUSDT,1000RATSUSDT,COWUSDT,NEIROUSDT,SWARMSUSDT')
   .split(',')
   .map(s => s.trim().toUpperCase());
 
@@ -31,6 +31,11 @@ const CG_IDS = {
   '1000CHEEMSUSDT': 'cheems',
   MEWUSDT: 'cat-in-a-dogs-world',
   DOGEUSDT: 'dogecoin',
+  '1000LUNCUSDT': 'terra-luna',
+  '1000RATSUSDT': 'rats',
+  COWUSDT: 'cow-protocol',
+  NEIROUSDT: 'neiro',
+  SWARMSUSDT: 'swarms',
 };
 
 function parseTicker(t) {
