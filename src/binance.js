@@ -76,20 +76,29 @@ function scheduleReconnect() {
 
 function httpsGetJSON(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { timeout: 5000 }, (res) => {
+    const req = https.get(url, { timeout: 5000, headers: { 'Accept': 'application/json' } }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch(e) { reject(e); }
+        try {
+          const obj = JSON.parse(data);
+          resolve(obj);
+        } catch(e) {
+          reject(e);
+        }
       });
-    }).on('error', reject).on('timeout', function() { this.destroy(); reject(new Error('timeout')); });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
   });
 }
 
 async function fetchSingle(symbol) {
   try {
     const url = `${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`;
-    const t = await httpsGetJSON(url);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const t = await res.json();
     return {
       price: parseFloat(t.lastPrice),
       change24h: parseFloat(t.priceChangePercent || 0),
@@ -100,8 +109,23 @@ async function fetchSingle(symbol) {
       ask: parseFloat(t.askPrice || 0),
       timestamp: Date.now(),
     };
-  } catch {
-    return null;
+  } catch (err) {
+    // fallback: try https module if fetch fails (e.g. DNS/network issues)
+    try {
+      const t = await httpsGetJSON(url);
+      return {
+        price: parseFloat(t.lastPrice),
+        change24h: parseFloat(t.priceChangePercent || 0),
+        high24h: parseFloat(t.highPrice || 0),
+        low24h: parseFloat(t.lowPrice || 0),
+        volume24h: parseFloat(t.quoteVolume || 0),
+        bid: parseFloat(t.bidPrice || 0),
+        ask: parseFloat(t.askPrice || 0),
+        timestamp: Date.now(),
+      };
+    } catch {
+      return null;
+    }
   }
 }
 
