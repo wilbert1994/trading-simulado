@@ -116,10 +116,13 @@ async function fetchBinanceAll() {
   let success = 0;
   for (const sym of symbols) {
     try {
-      const res = await fetch(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${sym}`, { timeout: 5000 });
+      const res = await fetch(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${sym}`, {
+        timeout: 5000,
+        headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+      });
       if (!res.ok) continue;
       const t = await res.json();
-      if (!t.lastPrice) continue;
+      if (!t.lastPrice || t.code) continue;
       priceCache[sym] = {
         price: parseFloat(t.lastPrice),
         change24h: parseFloat(t.priceChangePercent || 0),
@@ -134,6 +137,7 @@ async function fetchBinanceAll() {
       success++;
     } catch {}
   }
+  if (success > 0) console.log(`[Binance] ${success}/${symbols.length} precios`);
   return success;
 }
 
@@ -141,11 +145,13 @@ async function fetchPrices() {
   if (fetching) return;
   fetching = true;
   try {
-    if (!useCoinGecko) {
-      const s = await fetchBinanceAll();
-      if (s === 0) { useCoinGecko = true; }
-    }
-    if (useCoinGecko) {
+    // Try Binance Futures first
+    const binanceOk = await fetchBinanceAll();
+    if (binanceOk > 0) {
+      useCoinGecko = false;
+    } else {
+      // Fallback to CoinGecko
+      useCoinGecko = true;
       await fetchCoinGecko();
     }
   } catch(err) {
