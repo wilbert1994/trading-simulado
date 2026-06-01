@@ -90,12 +90,14 @@ async function fetchCoinGecko() {
     for (const sym of symbols) {
       const id = CG_IDS[sym];
       if (data[id] && data[id].usd) {
+        const multiplier = sym.startsWith('1000') ? 1000 : 1;
+        const cgPrice = data[id].usd * multiplier;
         priceCache[sym] = {
-          price: data[id].usd,
+          price: cgPrice,
           change24h: data[id].usd_24h_change || 0,
           high24h: 0,
           low24h: 0,
-          volume24h: data[id].usd_24h_vol || 0,
+          volume24h: (data[id].usd_24h_vol || 0) * multiplier,
           bid: 0,
           ask: 0,
           timestamp: Date.now(),
