@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const https = require('https');
 const { set } = require('./firebase');
 
 const REST_URL = 'https://fapi.binance.com';
@@ -73,15 +74,22 @@ function scheduleReconnect() {
   }
 }
 
+function httpsGetJSON(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { timeout: 5000 }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch(e) { reject(e); }
+      });
+    }).on('error', reject).on('timeout', function() { this.destroy(); reject(new Error('timeout')); });
+  });
+}
+
 async function fetchSingle(symbol) {
   try {
     const url = `${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const t = await res.json();
+    const t = await httpsGetJSON(url);
     return {
       price: parseFloat(t.lastPrice),
       change24h: parseFloat(t.priceChangePercent || 0),
