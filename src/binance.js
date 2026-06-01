@@ -1,8 +1,8 @@
 const WebSocket = require('ws');
-const https = require('https');
 const { set } = require('./firebase');
 
 const REST_URL = 'https://fapi.binance.com';
+const CG_URL = 'https://api.coingecko.com/api/v3';
 const WS_URL = 'wss://stream.binance.com:9443/stream';
 const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT,MOODENGUSDT,PENGUUSDT,MEMEUSDT,BRETTUSDT,TURBOUSDT,1000CHEEMSUSDT,MEWUSDT,DOGEUSDT')
   .split(',')
@@ -12,6 +12,24 @@ const priceCache = {};
 let ws = null;
 let wsReconnectTimer = null;
 let pollInterval = null;
+let useCoinGecko = false;
+
+const CG_IDS = {
+  BTCUSDT: 'bitcoin',
+  ETHUSDT: 'ethereum',
+  '1000PEPEUSDT': 'pepe',
+  WIFUSDT: 'dogwifcoin',
+  '1000BONKUSDT': 'bonk',
+  '1000FLOKIUSDT': 'floki',
+  MOODENGUSDT: 'moo-deng',
+  PENGUUSDT: 'pudgy-penguins',
+  MEMEUSDT: 'memecoin-2',
+  BRETTUSDT: 'based-brett',
+  TURBOUSDT: 'turbo',
+  '1000CHEEMSUSDT': 'cheems',
+  MEWUSDT: 'cat-in-a-dogs-world',
+  DOGEUSDT: 'dogecoin',
+};
 
 function parseTicker(t) {
   return {
@@ -26,39 +44,32 @@ function parseTicker(t) {
   };
 }
 
+// ===== WebSocket =====
 function connectWebSocket() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-
   const streams = symbols.map(s => `${s.toLowerCase()}@ticker`).join('/');
   const url = `${WS_URL}?streams=${streams}`;
-
   try {
     ws = new WebSocket(url);
-
     ws.on('open', () => {
-      console.log(`[WS] Conectado a Binance WebSocket (${symbols.length} símbolos)`);
+      console.log(`[WS] Conectado (${symbols.length} símbolos)`);
     });
-
     ws.on('message', (data) => {
       try {
         const msg = JSON.parse(data);
         if (msg.stream && msg.data) {
-          const symbol = msg.stream.split('@')[0].toUpperCase();
+          const sym = msg.stream.split('@')[0].toUpperCase();
           const ticker = parseTicker(msg.data);
-          priceCache[symbol] = ticker;
-          set(`prices/${symbol}`, ticker).catch(() => {});
+          priceCache[sym] = ticker;
+          set(`prices/${sym}`, ticker).catch(() => {});
         }
       } catch {}
     });
-
     ws.on('close', () => {
       console.log('[WS] Desconectado, reconectando en 3s...');
       scheduleReconnect();
     });
-
-    ws.on('error', () => {
-      ws.close();
-    });
+    ws.on('error', () => { ws.close(); });
   } catch {
     scheduleReconnect();
   }
@@ -67,116 +78,115 @@ function connectWebSocket() {
 function scheduleReconnect() {
   if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
   wsReconnectTimer = setTimeout(connectWebSocket, 3000);
-  // Fallback to REST polling if WebSocket is down
-  if (!pollInterval && symbols.length > 0) {
-    fetchPrices().then(() => console.log('[Binance] Fallback REST iniciado'));
-    pollInterval = setInterval(fetchPrices, 1000);
-  }
 }
 
-function httpsGetJSON(url) {
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, { timeout: 5000, headers: { 'Accept': 'application/json' } }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const obj = JSON.parse(data);
-          resolve(obj);
-        } catch(e) {
-          reject(e);
-        }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+// ===== Binance REST =====
+async function fetchFromBinance(symbol) {
+  const res = await fetch(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`, {
+    signal: AbortSignal.timeout(8000),
   });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const t = await res.json();
+  return {
+    price: parseFloat(t.lastPrice),
+    change24h: parseFloat(t.priceChangePercent || 0),
+    high24h: parseFloat(t.highPrice || 0),
+    low24h: parseFloat(t.lowPrice || 0),
+    volume24h: parseFloat(t.quoteVolume || 0),
+    bid: parseFloat(t.bidPrice || 0),
+    ask: parseFloat(t.askPrice || 0),
+    timestamp: Date.now(),
+  };
 }
 
-async function fetchSingle(symbol) {
-  const url = `${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`;
-  // try fetch with AbortController timeout (Node 18+)
+// ===== CoinGecko Fallback =====
+async function fetchFromCoinGecko() {
+  const ids = symbols.map(s => CG_IDS[s]).filter(Boolean).join(',');
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
+    const res = await fetch(
+      `${CG_URL}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`,
+      { signal: AbortSignal.timeout(10000) }
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const t = await res.json();
-    return {
-      price: parseFloat(t.lastPrice),
-      change24h: parseFloat(t.priceChangePercent || 0),
-      high24h: parseFloat(t.highPrice || 0),
-      low24h: parseFloat(t.lowPrice || 0),
-      volume24h: parseFloat(t.quoteVolume || 0),
-      bid: parseFloat(t.bidPrice || 0),
-      ask: parseFloat(t.askPrice || 0),
-      timestamp: Date.now(),
-    };
-  } catch {
-    // fallback: try https module (different DNS/resolution path)
-    const t = await httpsGetJSON(url);
-    if (t && t.lastPrice) {
-      return {
-        price: parseFloat(t.lastPrice),
-        change24h: parseFloat(t.priceChangePercent || 0),
-        high24h: parseFloat(t.highPrice || 0),
-        low24h: parseFloat(t.lowPrice || 0),
-        volume24h: parseFloat(t.quoteVolume || 0),
-        bid: parseFloat(t.bidPrice || 0),
-        ask: parseFloat(t.askPrice || 0),
-        timestamp: Date.now(),
-      };
+    const data = await res.json();
+    let ok = 0;
+    for (const symbol of symbols) {
+      const id = CG_IDS[symbol];
+      if (data[id]) {
+        priceCache[symbol] = {
+          price: data[id].usd,
+          change24h: data[id].usd_24h_change || 0,
+          high24h: 0,
+          low24h: 0,
+          volume24h: data[id].usd_24h_vol || 0,
+          bid: 0,
+          ask: 0,
+          timestamp: Date.now(),
+        };
+        set(`prices/${symbol}`, priceCache[symbol]).catch(() => {});
+        ok++;
+      }
     }
-    return null;
+    console.log(`[CG] ${ok}/${symbols.length} precios actualizados`);
+    return true;
+  } catch (err) {
+    console.error('[CG] Error:', err.message);
+    return false;
   }
 }
 
+// ===== Main Price Fetch =====
 async function fetchPrices() {
-  const results = await Promise.allSettled(symbols.map(fetchSingle));
-  let ok = 0;
-  const batch = [];
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value) {
-      const data = result.value;
-      const sym = symbols[results.indexOf(result)];
-      priceCache[sym] = data;
-      batch.push(set(`prices/${sym}`, data));
-      ok++;
+  if (useCoinGecko) {
+    await fetchFromCoinGecko();
+    return;
+  }
+
+  const results = await Promise.allSettled(symbols.map(s => fetchFromBinance(s)));
+  let success = 0;
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].status === 'fulfilled') {
+      const sym = symbols[i];
+      priceCache[sym] = results[i].value;
+      set(`prices/${sym}`, results[i].value).catch(() => {});
+      success++;
     }
   }
-  Promise.allSettled(batch);
-  if (ok === 0) console.error('[Binance] No se pudieron obtener precios');
+
+  if (success === 0) {
+    console.log('[Binance] No accesible, cambiando a CoinGecko...');
+    useCoinGecko = true;
+    await fetchFromCoinGecko();
+  } else if (success > 0) {
+    if (useCoinGecko) console.log('[Binance] Restaurado, volviendo a Binance');
+    useCoinGecko = false;
+  }
 }
 
-// Writes all prices to Firebase at interval to keep DB in sync even if WS missed some
+// ===== Firebase Sync =====
 function startFirebaseSync() {
   setInterval(() => {
     const batch = [];
-    for (const [symbol, data] of Object.entries(priceCache)) {
-      batch.push(set(`prices/${symbol}`, data));
+    for (const [sym, data] of Object.entries(priceCache)) {
+      batch.push(set(`prices/${sym}`, data));
     }
     Promise.allSettled(batch);
-  }, 1000);
+  }, 5000);
 }
 
+// ===== Start / Stop =====
 function startPricePolling() {
-  console.log('[Binance] Iniciando WebSocket + REST de precios...');
+  console.log('[Binance] Iniciando WebSocket + REST + CoinGecko fallback...');
   connectWebSocket();
   startFirebaseSync();
-  // REST polling always runs in parallel for futures-only symbols
-  fetchPrices().then(() => console.log('[Binance] REST polling iniciado (1s)'));
-  pollInterval = setInterval(fetchPrices, 1000);
+  fetchPrices().then(() => console.log('[Binance] Polling iniciado'));
+  pollInterval = setInterval(fetchPrices, 5000);
 }
 
 function stopPricePolling() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
   if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
-  if (ws) {
-    ws.removeAllListeners();
-    ws.close();
-    ws = null;
-  }
+  if (ws) { ws.removeAllListeners(); ws.close(); ws = null; }
 }
 
 function getPrice(symbol) {
