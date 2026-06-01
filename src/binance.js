@@ -113,29 +113,30 @@ async function fetchCoinGecko() {
 }
 
 async function fetchBinanceAll() {
-  let success = 0;
-  for (const sym of symbols) {
+  const results = await Promise.allSettled(symbols.map(async (sym) => {
     try {
       const res = await fetch(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${sym}`, {
-        timeout: 5000,
+        timeout: 4000,
         headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
       });
-      if (!res.ok) continue;
+      if (!res.ok) return null;
       const t = await res.json();
-      if (!t.lastPrice || t.code) continue;
-      priceCache[sym] = {
-        price: parseFloat(t.lastPrice),
-        change24h: parseFloat(t.priceChangePercent || 0),
-        high24h: parseFloat(t.highPrice || 0),
-        low24h: parseFloat(t.lowPrice || 0),
-        volume24h: parseFloat(t.quoteVolume || 0),
-        bid: parseFloat(t.bidPrice || 0),
-        ask: parseFloat(t.askPrice || 0),
-        timestamp: Date.now(),
-      };
-      set(`prices/${sym}`, priceCache[sym]).catch(() => {});
+      if (!t.lastPrice || t.code) return null;
+      return { sym, price: parseFloat(t.lastPrice), change24h: parseFloat(t.priceChangePercent || 0),
+        high24h: parseFloat(t.highPrice || 0), low24h: parseFloat(t.lowPrice || 0),
+        volume24h: parseFloat(t.quoteVolume || 0), bid: parseFloat(t.bidPrice || 0),
+        ask: parseFloat(t.askPrice || 0) };
+    } catch { return null; }
+  }));
+
+  let success = 0;
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value) {
+      const d = r.value;
+      priceCache[d.sym] = { ...d, timestamp: Date.now() };
+      set(`prices/${d.sym}`, priceCache[d.sym]).catch(() => {});
       success++;
-    } catch {}
+    }
   }
   if (success > 0) console.log(`[Binance] ${success}/${symbols.length} precios`);
   return success;
@@ -165,7 +166,7 @@ function startPricePolling() {
   console.log('[Binance] Iniciando WebSocket + CoinGecko...');
   connectWebSocket();
   fetchPrices();
-  pollInterval = setInterval(fetchPrices, 10000);
+  pollInterval = setInterval(fetchPrices, 8000);
 }
 
 function stopPricePolling() {
