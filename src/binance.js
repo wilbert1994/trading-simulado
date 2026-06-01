@@ -135,31 +135,40 @@ async function fetchFromCoinGecko() {
   }
 }
 
+let fetching = false;
+
 // ===== Main Price Fetch =====
 async function fetchPrices() {
-  if (useCoinGecko) {
-    await fetchFromCoinGecko();
-    return;
-  }
-
-  const results = await Promise.allSettled(symbols.map(s => fetchFromBinance(s)));
-  let success = 0;
-  for (let i = 0; i < results.length; i++) {
-    if (results[i].status === 'fulfilled') {
-      const sym = symbols[i];
-      priceCache[sym] = results[i].value;
-      set(`prices/${sym}`, results[i].value).catch(() => {});
-      success++;
+  if (fetching) return;
+  fetching = true;
+  try {
+    if (useCoinGecko) {
+      await fetchFromCoinGecko();
+      return;
     }
-  }
 
-  if (success === 0) {
-    console.log('[Binance] No accesible, cambiando a CoinGecko...');
-    useCoinGecko = true;
-    await fetchFromCoinGecko();
-  } else if (success > 0) {
-    if (useCoinGecko) console.log('[Binance] Restaurado, volviendo a Binance');
-    useCoinGecko = false;
+    const results = await Promise.allSettled(symbols.map(s => fetchFromBinance(s)));
+    let success = 0;
+    const batch = [];
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].status === 'fulfilled') {
+        const sym = symbols[i];
+        priceCache[sym] = results[i].value;
+        batch.push(set(`prices/${sym}`, results[i].value));
+        success++;
+      }
+    }
+    Promise.allSettled(batch);
+
+    if (success === 0) {
+      console.log('[Binance] No accesible, cambiando a CoinGecko...');
+      useCoinGecko = true;
+    } else if (success > 0 && useCoinGecko) {
+      console.log('[Binance] Restaurado, volviendo a Binance');
+      useCoinGecko = false;
+    }
+  } finally {
+    fetching = false;
   }
 }
 
@@ -171,7 +180,7 @@ function startFirebaseSync() {
       batch.push(set(`prices/${sym}`, data));
     }
     Promise.allSettled(batch);
-  }, 5000);
+  }, 8000);
 }
 
 // ===== Start / Stop =====
@@ -180,7 +189,7 @@ function startPricePolling() {
   connectWebSocket();
   startFirebaseSync();
   fetchPrices().then(() => console.log('[Binance] Polling iniciado'));
-  pollInterval = setInterval(fetchPrices, 5000);
+  pollInterval = setInterval(fetchPrices, 8000);
 }
 
 function stopPricePolling() {
