@@ -1,5 +1,5 @@
 const WebSocket = require('ws');
-const fetch = require('node-fetch');
+const https = require('https');
 const { set } = require('./firebase');
 
 const REST_URL = 'https://fapi.binance.com';
@@ -13,42 +13,34 @@ const priceCache = {};
 let ws = null;
 let wsReconnectTimer = null;
 let pollInterval = null;
-let useCoinGecko = true;
 let fetching = false;
+let useBinance = false;
 
 const CG_IDS = {
-  BTCUSDT: 'bitcoin',
-  ETHUSDT: 'ethereum',
-  '1000PEPEUSDT': 'pepe',
-  WIFUSDT: 'dogwifcoin',
-  '1000BONKUSDT': 'bonk',
-  '1000FLOKIUSDT': 'floki',
-  MOODENGUSDT: 'moo-deng',
-  PENGUUSDT: 'pudgy-penguins',
-  MEMEUSDT: 'memecoin-2',
-  BRETTUSDT: 'based-brett',
-  TURBOUSDT: 'turbo',
-  '1000CHEEMSUSDT': 'cheems-token',
-  MEWUSDT: 'cat-in-a-dogs-world',
-  DOGEUSDT: 'dogecoin',
-  '1000LUNCUSDT': 'terra-luna',
-  '1000RATSUSDT': 'rats',
-  COWUSDT: 'cow-protocol',
-  NEIROUSDT: 'neiro',
-  SWARMSUSDT: 'swarms',
+  BTCUSDT: 'bitcoin', ETHUSDT: 'ethereum', '1000PEPEUSDT': 'pepe', WIFUSDT: 'dogwifcoin',
+  '1000BONKUSDT': 'bonk', '1000FLOKIUSDT': 'floki', MOODENGUSDT: 'moo-deng',
+  PENGUUSDT: 'pudgy-penguins', MEMEUSDT: 'memecoin-2', BRETTUSDT: 'based-brett',
+  TURBOUSDT: 'turbo', '1000CHEEMSUSDT': 'cheems-token', MEWUSDT: 'cat-in-a-dogs-world',
+  DOGEUSDT: 'dogecoin', '1000LUNCUSDT': 'terra-luna', '1000RATSUSDT': 'rats',
+  COWUSDT: 'cow-protocol', NEIROUSDT: 'neiro', SWARMSUSDT: 'swarms',
 };
 
 function parseTicker(t) {
-  return {
-    price: parseFloat(t.c),
-    change24h: parseFloat(t.P || 0),
-    high24h: parseFloat(t.h || 0),
-    low24h: parseFloat(t.l || 0),
-    volume24h: parseFloat(t.q || 0),
-    bid: parseFloat(t.b || 0),
-    ask: parseFloat(t.a || 0),
-    timestamp: Date.now(),
-  };
+  return { price: parseFloat(t.c), change24h: parseFloat(t.P || 0), high24h: parseFloat(t.h || 0),
+    low24h: parseFloat(t.l || 0), volume24h: parseFloat(t.q || 0), bid: parseFloat(t.b || 0),
+    ask: parseFloat(t.a || 0), timestamp: Date.now() };
+}
+
+function httpGet(url, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { timeout: timeoutMs, headers: { 'User-Agent': 'TradingSimulado/1.0' } }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(e); } });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+  });
 }
 
 function connectWebSocket() {
@@ -56,7 +48,7 @@ function connectWebSocket() {
   const streams = symbols.map(s => `${s.toLowerCase()}@ticker`).join('/');
   try {
     ws = new WebSocket(`${WS_URL}?streams=${streams}`);
-    ws.on('open', () => console.log(`[WS] Conectado (${symbols.length} símbolos)`));
+    ws.on('open', () => console.log(`[WS] Conectado (${symbols.length})`));
     ws.on('message', (data) => {
       try {
         const msg = JSON.parse(data);
@@ -67,7 +59,7 @@ function connectWebSocket() {
         }
       } catch {}
     });
-    ws.on('close', () => { console.log('[WS] Desconectado'); scheduleReconnect(); });
+    ws.on('close', () => { scheduleReconnect(); });
     ws.on('error', () => { try { ws.close(); } catch {} });
   } catch { scheduleReconnect(); }
 }
@@ -77,50 +69,10 @@ function scheduleReconnect() {
   wsReconnectTimer = setTimeout(connectWebSocket, 5000);
 }
 
-async function fetchCoinGecko() {
-  const ids = symbols.map(s => CG_IDS[s]).filter(Boolean).join(',');
-  try {
-    const res = await fetch(`${CG_URL}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`, {
-      timeout: 10000,
-      headers: { 'User-Agent': 'TradingSimulado/1.0' },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    let ok = 0;
-    for (const sym of symbols) {
-      const id = CG_IDS[sym];
-      if (data[id] && data[id].usd) {
-        const multiplier = sym.startsWith('1000') ? 1000 : 1;
-        const cgPrice = data[id].usd * multiplier;
-        priceCache[sym] = {
-          price: cgPrice,
-          change24h: data[id].usd_24h_change || 0,
-          high24h: 0,
-          low24h: 0,
-          volume24h: (data[id].usd_24h_vol || 0) * multiplier,
-          bid: 0,
-          ask: 0,
-          timestamp: Date.now(),
-        };
-        set(`prices/${sym}`, priceCache[sym]).catch(() => {});
-        ok++;
-      }
-    }
-    console.log(`[CG] ${ok}/${symbols.length} precios`);
-  } catch (err) {
-    console.error('[CG] Error:', err.message);
-  }
-}
-
 async function fetchBinanceAll() {
-  const results = await Promise.allSettled(symbols.map(async (sym) => {
+  const results = await Promise.all(symbols.map(async (sym) => {
     try {
-      const res = await fetch(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${sym}`, {
-        timeout: 4000,
-        headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-      });
-      if (!res.ok) return null;
-      const t = await res.json();
+      const t = await httpGet(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${sym}`, 4000);
       if (!t.lastPrice || t.code) return null;
       return { sym, price: parseFloat(t.lastPrice), change24h: parseFloat(t.priceChangePercent || 0),
         high24h: parseFloat(t.highPrice || 0), low24h: parseFloat(t.lowPrice || 0),
@@ -128,7 +80,6 @@ async function fetchBinanceAll() {
         ask: parseFloat(t.askPrice || 0) };
     } catch { return null; }
   }));
-
   let success = 0;
   for (const r of results) {
     if (r.status === 'fulfilled' && r.value) {
@@ -142,18 +93,44 @@ async function fetchBinanceAll() {
   return success;
 }
 
+async function fetchCoinGecko() {
+  const ids = symbols.map(s => CG_IDS[s]).filter(Boolean).join(',');
+  try {
+    const path = `/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`;
+    const data = await httpGet(`${CG_URL}${path}`, 10000);
+    let ok = 0;
+    for (const sym of symbols) {
+      const id = CG_IDS[sym];
+      if (data[id] && data[id].usd) {
+        const multiplier = sym.startsWith('1000') ? 1000 : 1;
+        priceCache[sym] = {
+          price: data[id].usd * multiplier,
+          change24h: data[id].usd_24h_change || 0, high24h: 0, low24h: 0,
+          volume24h: (data[id].usd_24h_vol || 0) * multiplier, bid: 0, ask: 0, timestamp: Date.now(),
+        };
+        set(`prices/${sym}`, priceCache[sym]).catch(() => {});
+        ok++;
+      }
+    }
+    console.log(`[CG] ${ok}/${symbols.length} precios`);
+    return ok > 0;
+  } catch (err) {
+    console.error('[CG] Error:', err.message);
+    return false;
+  }
+}
+
 async function fetchPrices() {
   if (fetching) return;
   fetching = true;
   try {
-    // Try Binance Futures first
-    const binanceOk = await fetchBinanceAll();
-    if (binanceOk > 0) {
-      useCoinGecko = false;
+    if (useBinance) {
+      const ok = await fetchBinanceAll();
+      if (ok === 0) { useBinance = false; await fetchCoinGecko(); }
     } else {
-      // Fallback to CoinGecko
-      useCoinGecko = true;
-      await fetchCoinGecko();
+      const ok = await fetchBinanceAll();
+      if (ok > 0) { useBinance = true; }
+      else { await fetchCoinGecko(); }
     }
   } catch(err) {
     console.error('[Fetch] Error:', err.message);
@@ -163,7 +140,7 @@ async function fetchPrices() {
 }
 
 function startPricePolling() {
-  console.log('[Binance] Iniciando WebSocket + CoinGecko...');
+  console.log('[Binance] Iniciando...');
   connectWebSocket();
   fetchPrices();
   pollInterval = setInterval(fetchPrices, 8000);
@@ -180,12 +157,7 @@ function getPrice(symbol) {
   return data ? data.price : null;
 }
 
-function getAllPrices() {
-  return { ...priceCache };
-}
-
-function getAllSymbols() {
-  return [...symbols];
-}
+function getAllPrices() { return { ...priceCache }; }
+function getAllSymbols() { return [...symbols]; }
 
 module.exports = { startPricePolling, stopPricePolling, getPrice, getAllPrices, getAllSymbols };
