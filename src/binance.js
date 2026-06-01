@@ -94,9 +94,13 @@ function httpsGetJSON(url) {
 }
 
 async function fetchSingle(symbol) {
+  const url = `${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`;
+  // try fetch with AbortController timeout (Node 18+)
   try {
-    const url = `${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`;
-    const res = await fetch(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const t = await res.json();
     return {
@@ -109,10 +113,10 @@ async function fetchSingle(symbol) {
       ask: parseFloat(t.askPrice || 0),
       timestamp: Date.now(),
     };
-  } catch (err) {
-    // fallback: try https module if fetch fails (e.g. DNS/network issues)
-    try {
-      const t = await httpsGetJSON(url);
+  } catch {
+    // fallback: try https module (different DNS/resolution path)
+    const t = await httpsGetJSON(url);
+    if (t && t.lastPrice) {
       return {
         price: parseFloat(t.lastPrice),
         change24h: parseFloat(t.priceChangePercent || 0),
@@ -123,20 +127,21 @@ async function fetchSingle(symbol) {
         ask: parseFloat(t.askPrice || 0),
         timestamp: Date.now(),
       };
-    } catch {
-      return null;
     }
+    return null;
   }
 }
 
 async function fetchPrices() {
+  const results = await Promise.allSettled(symbols.map(fetchSingle));
   let ok = 0;
   const batch = [];
-  for (const symbol of symbols) {
-    const data = await fetchSingle(symbol);
-    if (data) {
-      priceCache[symbol] = data;
-      batch.push(set(`prices/${symbol}`, data));
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      const data = result.value;
+      const sym = symbols[results.indexOf(result)];
+      priceCache[sym] = data;
+      batch.push(set(`prices/${sym}`, data));
       ok++;
     }
   }
