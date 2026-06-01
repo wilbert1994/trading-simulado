@@ -217,30 +217,29 @@ async function runStrategy() {
 // Debug: test external connectivity
 app.get('/api/debug/connectivity', async (req, res) => {
   const https = require('https');
-  const urls = [
-    'https://api.coingecko.com/api/v3/ping',
-    'https://fapi.binance.com/fapi/v1/ping',
-    'https://fapi1.binance.com/fapi/v1/ping',
-    'https://fapi2.binance.com/fapi/v1/ping',
-    'https://fapi3.binance.com/fapi/v1/ping',
-  ];
-  const results = {};
-  for (const url of urls) {
-    const start = Date.now();
-    try {
-      await new Promise((resolve, reject) => {
-        const req = https.get(url, { timeout: 8000 }, (res) => {
-          let d = ''; res.on('data', c => d+=c); res.on('end', () => resolve({status: res.statusCode, body: d}));
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+  
+  function httpGet(url) {
+    return new Promise((resolve, reject) => {
+      const req = https.get(url, { timeout: 8000 }, (res) => {
+        let data = ''; res.on('data', c => data+=c); res.on('end', () => resolve(JSON.parse(data)));
       });
-      results[url] = { ok: true, ms: Date.now() - start };
-    } catch(e) {
-      results[url] = { ok: false, error: e.message, ms: Date.now() - start };
-    }
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    });
   }
-  res.json(results);
+
+  try {
+    const btc = await httpGet('https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT');
+    const cg = await httpGet('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
+    res.json({
+      binance_fields: Object.keys(btc).slice(0, 15),
+      btc_lastPrice: btc.lastPrice,
+      btc_priceChangePercent: btc.priceChangePercent,
+      coingecko_bitcoin: cg,
+    });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
 });
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime(), symbols: getAllSymbols() });
