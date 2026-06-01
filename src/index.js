@@ -214,33 +214,15 @@ async function runStrategy() {
   }
 }
 
-// Debug: test external connectivity
-app.get('/api/debug/connectivity', async (req, res) => {
-  const https = require('https');
-  
-  function httpGet(url) {
-    return new Promise((resolve, reject) => {
-      const req = https.get(url, { timeout: 8000 }, (res) => {
-        let data = ''; res.on('data', c => data+=c); res.on('end', () => resolve(JSON.parse(data)));
-      });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-    });
-  }
-
-  try {
-    const btc = await httpGet('https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT');
-    const cg = await httpGet('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
-    res.json({
-      binance_fields: Object.keys(btc).slice(0, 15),
-      btc_lastPrice: btc.lastPrice,
-      btc_priceChangePercent: btc.priceChangePercent,
-      coingecko_bitcoin: cg,
-    });
-  } catch(e) {
-    res.json({ error: e.message });
-  }
+// Force price fetch for debugging
+app.get('/api/debug/fetch-prices', async (req, res) => {
+  const { fetchPrices, getAllPrices } = require('./binance');
+  await fetchPrices();
+  const prices = getAllPrices();
+  const valid = Object.entries(prices).filter(([,v]) => v && v.price).length;
+  res.json({ valid: `${valid}/${Object.keys(prices).length}`, prices });
 });
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime(), symbols: getAllSymbols() });
 });

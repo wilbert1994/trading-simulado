@@ -119,7 +119,7 @@ async function fetchFromBinance(symbol) {
 async function fetchFromCoinGecko() {
   const ids = symbols.map(s => CG_IDS[s]).filter(Boolean).join(',');
   try {
-    const path = `/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`;
+    const path = `/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`;
     const data = await httpGet(`https://${CG_HOST}${path}`);
     let ok = 0;
     for (const symbol of symbols) {
