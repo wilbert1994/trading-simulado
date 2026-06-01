@@ -28,7 +28,7 @@ const CG_IDS = {
   MEMEUSDT: 'memecoin-2',
   BRETTUSDT: 'based-brett',
   TURBOUSDT: 'turbo',
-  '1000CHEEMSUSDT': 'cheems',
+  '1000CHEEMSUSDT': 'cheems-token',
   MEWUSDT: 'cat-in-a-dogs-world',
   DOGEUSDT: 'dogecoin',
   '1000LUNCUSDT': 'terra-luna',
