@@ -1,26 +1,25 @@
 const { set } = require('./firebase');
 
 const REST_URL = process.env.BINANCE_REST_URL || 'https://fapi.binance.com';
-const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT')
+const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT')
   .split(',')
   .map(s => s.trim().toUpperCase());
 
 const priceCache = {};
 let pollInterval = null;
+let consecutiveErrors = 0;
 
-async function fetchPrices() {
-  for (const symbol of symbols) {
+async function fetchPrice(symbol, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
     try {
-      const [tickerRes, priceRes] = await Promise.all([
-        fetch(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`),
-        fetch(`${REST_URL}/fapi/v1/ticker/price?symbol=${symbol}`),
-      ]);
+      const res = await fetch(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const ticker = await res.json();
 
-      const ticker = await tickerRes.json();
-      const priceData = await priceRes.json();
-
-      priceCache[symbol] = {
-        price: parseFloat(priceData.price),
+      return {
+        price: parseFloat(ticker.lastPrice),
         change24h: parseFloat(ticker.priceChangePercent || 0),
         high24h: parseFloat(ticker.highPrice || 0),
         low24h: parseFloat(ticker.lowPrice || 0),
@@ -29,16 +28,41 @@ async function fetchPrices() {
         ask: parseFloat(ticker.askPrice || 0),
         timestamp: Date.now(),
       };
-
-      set(`prices/${symbol}`, priceCache[symbol]).catch(() => {});
     } catch (err) {
-      // precio no disponible por ahora
+      if (i < retries) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+  return null;
+}
+
+async function fetchPrices() {
+  let success = 0;
+  for (const symbol of symbols) {
+    const data = await fetchPrice(symbol);
+    if (data) {
+      priceCache[symbol] = data;
+      set(`prices/${symbol}`, data).catch(() => {});
+      success++;
+    }
+  }
+
+  if (success === 0) {
+    consecutiveErrors++;
+    if (consecutiveErrors === 1 || consecutiveErrors % 30 === 0) {
+      console.error(`[Binance] No se pudieron obtener precios (intento ${consecutiveErrors})`);
+    }
+  } else {
+    consecutiveErrors = 0;
+    if (success < symbols.length) {
+      console.log(`[Binance] ${success}/${symbols.length} símbolos actualizados`);
     }
   }
 }
 
 function startPricePolling() {
-  fetchPrices();
+  fetchPrices().then(() => console.log('[Binance] Primer fetch exitoso'));
   pollInterval = setInterval(fetchPrices, 2000);
 }
 
