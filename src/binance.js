@@ -93,6 +93,7 @@ function scheduleReconnect() {
 async function fetchFromBinance(symbol) {
   try {
     const t = await httpGet(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`);
+    console.log(`[Binance] ${symbol} OK`);
     return {
       price: parseFloat(t.lastPrice),
       change24h: parseFloat(t.priceChangePercent || 0),
@@ -103,7 +104,7 @@ async function fetchFromBinance(symbol) {
       ask: parseFloat(t.askPrice || 0),
       timestamp: Date.now(),
     };
-  } catch { return null; }
+  } catch(e) { console.log(`[Binance] ${symbol} FAIL: ${e.message}`); return null; }
 }
 
 // ===== CoinGecko Fallback =====
@@ -143,8 +144,14 @@ async function fetchPrices() {
   if (fetching) return;
   fetching = true;
   try {
-    if (useCoinGecko) { await fetchFromCoinGecko(); return; }
+    if (useCoinGecko) {
+      console.log('[Fetch] Usando CoinGecko...');
+      await fetchFromCoinGecko();
+      console.log('[Fetch] CoinGecko completado, cache:', Object.keys(priceCache).length);
+      return;
+    }
 
+    console.log('[Fetch] Intentando Binance...');
     const results = await Promise.all(symbols.map(s => fetchFromBinance(s).then(d => ({ symbol: s, data: d }), () => ({ symbol: s, data: null }))));
     let success = 0;
     for (const { symbol, data } of results) {
@@ -154,14 +161,16 @@ async function fetchPrices() {
         success++;
       }
     }
+    console.log(`[Fetch] Binance: ${success}/${symbols.length} ok, cache: ${Object.keys(priceCache).length}`);
 
     if (success === 0) {
-      console.log('[Binance] No accesible, cambiando a CoinGecko...');
+      console.log('[Fetch] Cambiando a CoinGecko...');
       useCoinGecko = true;
     } else if (success > 0 && useCoinGecko) {
-      console.log('[Binance] Restaurado');
       useCoinGecko = false;
     }
+  } catch(err) {
+    console.error('[Fetch] Error:', err.message);
   } finally {
     fetching = false;
   }
