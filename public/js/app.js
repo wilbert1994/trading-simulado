@@ -129,6 +129,7 @@ function renderPortfolio(p){
 // ===== POSITIONS =====
 function renderPositions(positions){
   const open=Object.values(positions).filter(p=>p.status==='OPEN');
+  open.sort((a,b) => b.unrealizedPnl - a.unrealizedPnl);
   $('#posCount').textContent=open.length;
   $('#btnCloseAll').style.display=open.length>0?'inline-block':'none';
   const cont=$('#positionsContainer');
