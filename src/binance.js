@@ -13,37 +13,39 @@ const priceCache = {};
 let ws = null;
 let wsReconnectTimer = null;
 let pollInterval = null;
-let useCoinGecko = false;
+let useCoinGecko = true;
 let fetching = false;
 
-const CG_IDS = {
-  BTCUSDT: 'bitcoin',
-  ETHUSDT: 'ethereum',
-  '1000PEPEUSDT': 'pepe',
-  WIFUSDT: 'dogwifcoin',
-  '1000BONKUSDT': 'bonk',
-  '1000FLOKIUSDT': 'floki',
-  MOODENGUSDT: 'moo-deng',
-  PENGUUSDT: 'pudgy-penguins',
-  MEMEUSDT: 'memecoin-2',
-  BRETTUSDT: 'based-brett',
-  TURBOUSDT: 'turbo',
-  '1000CHEEMSUSDT': 'cheems',
-  MEWUSDT: 'cat-in-a-dogs-world',
-  DOGEUSDT: 'dogecoin',
-};
+// ===== Main Fetch =====
+async function fetchPrices() {
+  if (fetching) return;
+  fetching = true;
+  try {
+    // Try Binance once every 5 cycles (40s) to see if it comes back
+    if (!useCoinGecko || (fetchPrices._cycles = (fetchPrices._cycles || 0) + 1) % 5 === 0) {
+      const results = await Promise.all(symbols.map(s => fetchFromBinance(s).then(d => ({ s, d }), () => ({ s, d: null }))));
+      let success = 0;
+      for (const { s, d } of results) {
+        if (d) { priceCache[s] = d; success++; }
+      }
+      if (success > 0) {
+        console.log(`[Binance] ${success}/${symbols.length} ok, usando Binance`);
+        useCoinGecko = false;
+        fetching = false;
+        return;
+      } else if (!useCoinGecko) {
+        console.log('[Binance] Falló, volviendo a CoinGecko');
+      }
+      useCoinGecko = true;
+    }
 
-function parseTicker(t) {
-  return {
-    price: parseFloat(t.c),
-    change24h: parseFloat(t.P || 0),
-    high24h: parseFloat(t.h || 0),
-    low24h: parseFloat(t.l || 0),
-    volume24h: parseFloat(t.q || 0),
-    bid: parseFloat(t.b || 0),
-    ask: parseFloat(t.a || 0),
-    timestamp: Date.now(),
-  };
+    // Primary: CoinGecko
+    await fetchFromCoinGecko();
+  } catch(err) {
+    console.error('[Fetch] Error:', err.message);
+  } finally {
+    fetching = false;
+  }
 }
 
 function httpGet(url) {
@@ -150,31 +152,25 @@ async function fetchPrices() {
   if (fetching) return;
   fetching = true;
   try {
-    if (useCoinGecko) {
-      console.log('[Fetch] Usando CoinGecko...');
-      await fetchFromCoinGecko();
-      console.log('[Fetch] CoinGecko completado, cache:', Object.keys(priceCache).length);
-      return;
-    }
-
-    console.log('[Fetch] Intentando Binance...');
-    const results = await Promise.all(symbols.map(s => fetchFromBinance(s).then(d => ({ symbol: s, data: d }), () => ({ symbol: s, data: null }))));
-    let success = 0;
-    for (const { symbol, data } of results) {
-      if (data) {
-        priceCache[symbol] = data;
-        set(`prices/${symbol}`, data).catch(() => {});
-        success++;
+    // Try Binance once every 5 cycles (~40s) to see if it recovers
+    if (!useCoinGecko || ((fetchPrices._cycles = (fetchPrices._cycles || 0) + 1) % 5 === 0)) {
+      const results = await Promise.all(symbols.map(s => fetchFromBinance(s).then(d => ({ s, d }), () => ({ s, d: null }))));
+      let success = 0;
+      for (const { s, d } of results) {
+        if (d) { priceCache[s] = d; set(`prices/${s}`, d).catch(() => {}); success++; }
+      }
+      if (success > 0) {
+        console.log(`[Binance] ${success}/${symbols.length} ok`);
+        useCoinGecko = false;
+        fetching = false;
+        return;
+      } else {
+        useCoinGecko = true;
       }
     }
-    console.log(`[Fetch] Binance: ${success}/${symbols.length} ok, cache: ${Object.keys(priceCache).length}`);
 
-    if (success === 0) {
-      console.log('[Fetch] Cambiando a CoinGecko...');
-      useCoinGecko = true;
-    } else if (success > 0 && useCoinGecko) {
-      useCoinGecko = false;
-    }
+    // Default: CoinGecko
+    await fetchFromCoinGecko();
   } catch(err) {
     console.error('[Fetch] Error:', err.message);
   } finally {
