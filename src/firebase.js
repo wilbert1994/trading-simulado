@@ -79,7 +79,7 @@ async function initDB() {
   }
 
   const cfg = await get('config');
-  const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT').split(',');
+  const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT,MOODENGUSDT,PENGUUSDT,MEMEUSDT,BRETTUSDT,TURBOUSDT,1000CHEEMSUSDT,MEWUSDT,DOGEUSDT').split(',');
   if (!cfg || !cfg.symbols) {
     await set('config', { symbols, updatedAt: Date.now() });
   }

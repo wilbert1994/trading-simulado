@@ -45,9 +45,12 @@
           </div>
         </div>
 
-        <div class="sidebar-card">
-          <div class="sc-label">Nueva Operación</div>
-          <div class="trade-form">
+        <div class="sidebar-card trade-card" id="tradeCard">
+          <div class="trade-toggle" onclick="toggleTradeForm()">
+            <span class="sc-label" style="margin-bottom:0">Nueva Operación</span>
+            <button class="trade-chevron" id="tradeChevron">▲</button>
+          </div>
+          <div class="trade-form collapse" id="tradeForm">
             <label>Par</label>
             <select id="tradeSymbol"></select>
             <label>USDT a invertir</label>
@@ -88,33 +91,38 @@
       </aside>
 
       <main class="main">
-        <div class="main-row">
-          <div class="card panel-positions">
-            <div class="card-head">
-              <h3>Posiciones Abiertas</h3>
-              <span class="pos-count" id="posCount">0</span>
-              <button class="head-btn" onclick="closeAllPositions()" id="btnCloseAll">Cerrar todas</button>
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="positions">Posiciones</button>
+          <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+          <button class="tab-btn" data-tab="history">Historial</button>
+        </div>
+
+        <div class="tab-content active" id="tab-positions">
+          <div class="tab-actions">
+            <span class="pos-count" id="posCount">0</span>
+            <button class="head-btn" onclick="closeAllPositions()" id="btnCloseAll">Cerrar todas</button>
+          </div>
+          <div id="positionsContainer">
+            <div class="empty">Sin posiciones abiertas</div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-dashboard">
+          <div class="dash-grid">
+            <div class="card panel-chart">
+              <div class="card-head"><h3>Evolución del Balance</h3></div>
+              <div class="card-body chart-wrap"><canvas id="balanceChart"></canvas></div>
             </div>
-            <div class="card-body scroll" id="positionsContainer">
-              <div class="empty">Sin posiciones abiertas</div>
+            <div class="card panel-log">
+              <div class="card-head"><h3>Actividad</h3></div>
+              <div class="card-body log-scroll" id="logContainer">
+                <div class="empty">Sin actividad. Inicia la estrategia.</div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="main-row two-col">
-          <div class="card panel-chart">
-            <div class="card-head"><h3>Evolución del Balance</h3></div>
-            <div class="card-body chart-wrap"><canvas id="balanceChart"></canvas></div>
-          </div>
-          <div class="card panel-log">
-            <div class="card-head"><h3>Actividad</h3></div>
-            <div class="card-body log-scroll" id="logContainer">
-              <div class="empty">Sin actividad. Inicia la estrategia.</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="main-row">
+        <div class="tab-content" id="tab-history">
           <div class="card panel-history">
             <div class="card-head"><h3>Historial de Trades</h3></div>
             <div class="card-body scroll">

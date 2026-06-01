@@ -36,9 +36,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 /* LAYOUT */
 .layout{display:flex;flex:1;gap:0}
 .sidebar{width:290px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
-.main{flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
-.main-row{display:flex;gap:12px}
-.main-row.two-col > .card{flex:1;min-width:0}
+.main{flex:1;padding:16px;display:flex;flex-direction:column;gap:0;overflow-y:auto}
+
+/* TABS */
+.tab-bar{display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--border)}
+.tab-btn{padding:10px 20px;background:transparent;border:none;color:var(--text3);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;font-family:var(--font);position:relative;bottom:-2px;border-bottom:2px solid transparent}
+.tab-btn:hover{color:var(--text2)}
+.tab-btn.active{color:var(--text);border-bottom-color:var(--gold)}
+.tab-content{display:none;flex:1;flex-direction:column;gap:12px}
+.tab-content.active{display:flex}
+.tab-actions{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.tab-actions .pos-count{font-size:12px;background:var(--bg3);padding:2px 8px;border-radius:10px;color:var(--text2);font-family:var(--mono)}
 
 /* SIDEBAR CARDS */
 .sidebar-card{background:var(--bg3);border-radius:var(--radius);padding:14px;border:1px solid var(--border)}
@@ -52,7 +60,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .sc-stat span{display:block;font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px}
 .sc-stat strong{font-size:13px;font-weight:600;font-family:var(--mono)}
 
-.trade-form{display:flex;flex-direction:column;gap:8px}
+/* TRADE FORM - COLLAPSIBLE */
+.trade-toggle{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.trade-chevron{background:transparent;border:none;color:var(--text3);font-size:10px;cursor:pointer;padding:0 4px;transition:transform .3s;font-family:var(--font)}
+.trade-chevron.open{transform:rotate(180deg)}
+.trade-form{display:flex;flex-direction:column;gap:8px;overflow:hidden;transition:max-height .35s ease,opacity .25s ease,margin-top .3s ease}
+.trade-form.open{max-height:500px;opacity:1;margin-top:10px}
+.trade-form.collapse{max-height:0;opacity:0;margin-top:0}
 .trade-form label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600}
 .trade-form select,.trade-form input{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-family:var(--mono);outline:none;transition:border .2s}
 .trade-form select:focus,.trade-form input:focus{border-color:var(--gold)}
@@ -87,16 +101,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .card{background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden}
 .card-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);gap:8px}
 .card-head h3{font-size:13px;font-weight:600;letter-spacing:-0.2px}
-.pos-count{font-size:12px;background:var(--bg3);padding:2px 8px;border-radius:10px;color:var(--text2);font-family:var(--mono)}
-.head-btn{font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;font-family:var(--font);display:none}
+.head-btn{font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;font-family:var(--font);display:inline-block}
 .head-btn:hover{border-color:var(--red);color:var(--red)}
 .card-body{padding:12px 16px}
-.card-body.scroll{max-height:350px;overflow-y:auto}
+.card-body.scroll{max-height:340px;overflow-y:auto}
 .scroll::-webkit-scrollbar{width:4px}
 .scroll::-webkit-scrollbar-track{background:transparent}
 .scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 
 .empty{text-align:center;color:var(--text3);padding:24px;font-size:13px}
+
+/* DASHBOARD GRID */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0}
+.dash-grid .card{display:flex;flex-direction:column}
+.dash-grid .card-body{flex:1}
 
 /* POSITIONS */
 .pos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
@@ -114,10 +132,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .pos-detail .pnl{font-size:14px;font-weight:700}
 
 /* CHART */
-.chart-wrap{height:240px;padding:4px 0}
+.chart-wrap{height:260px;padding:4px 0}
 
 /* LOG */
-.log-scroll{max-height:240px;overflow-y:auto;font-family:var(--mono);font-size:11px}
+.log-scroll{flex:1;min-height:0;overflow-y:auto;font-family:var(--mono);font-size:11px}
 .log-scroll::-webkit-scrollbar{width:4px}
 .log-scroll::-webkit-scrollbar-track{background:transparent}
 .log-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
@@ -142,7 +160,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   .layout{flex-direction:column}
   .sidebar{width:100%;flex-direction:row;flex-wrap:wrap;gap:8px;padding:10px;border-right:none;border-bottom:1px solid var(--border)}
   .sidebar-card{flex:1;min-width:200px}
-  .main-row.two-col{flex-direction:column}
+  .dash-grid{grid-template-columns:1fr}
   .pos-grid{grid-template-columns:1fr 1fr}
 }
 @media(max-width:640px){
@@ -151,6 +169,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   .sidebar{flex-direction:column;padding:8px}
   .sidebar-card{min-width:auto}
   .pos-grid{grid-template-columns:1fr}
+  .dash-grid{grid-template-columns:1fr}
   .layout{gap:0}
   .main{padding:8px}
 }

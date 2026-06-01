@@ -3,7 +3,7 @@ const { set } = require('./firebase');
 
 const REST_URL = 'https://fapi.binance.com';
 const WS_URL = 'wss://stream.binance.com:9443/stream';
-const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT')
+const symbols = (process.env.SYMBOLS || 'BTCUSDT,ETHUSDT,1000PEPEUSDT,WIFUSDT,1000BONKUSDT,1000FLOKIUSDT,MOODENGUSDT,PENGUUSDT,MEMEUSDT,BRETTUSDT,TURBOUSDT,1000CHEEMSUSDT,MEWUSDT,DOGEUSDT')
   .split(',')
   .map(s => s.trim().toUpperCase());
 
@@ -35,8 +35,7 @@ function connectWebSocket() {
     ws = new WebSocket(url);
 
     ws.on('open', () => {
-      console.log(`[WS] Conectado a Binance Futures WebSocket (${symbols.length} símbolos)`);
-      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+      console.log(`[WS] Conectado a Binance WebSocket (${symbols.length} símbolos)`);
     });
 
     ws.on('message', (data) => {
@@ -125,9 +124,12 @@ function startFirebaseSync() {
 }
 
 function startPricePolling() {
-  console.log('[Binance] Iniciando WebSocket de precios...');
+  console.log('[Binance] Iniciando WebSocket + REST de precios...');
   connectWebSocket();
   startFirebaseSync();
+  // REST polling always runs in parallel for futures-only symbols
+  fetchPrices().then(() => console.log('[Binance] REST polling iniciado (1s)'));
+  pollInterval = setInterval(fetchPrices, 1000);
 }
 
 function stopPricePolling() {

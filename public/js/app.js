@@ -15,7 +15,7 @@ function fmtX(n){return parseFloat(n).toLocaleString('en-US',{minimumFractionDig
 function sendReq(d){db.ref('tradeRequests').push({...d,status:'pending',timestamp:Date.now()})}
 
 // ===== TOP BAR TICKERS =====
-const TOP_SYMBOLS = ['BTCUSDT','ETHUSDT','1000PEPEUSDT','WIFUSDT','1000BONKUSDT','1000FLOKIUSDT'];
+const TOP_SYMBOLS = ['BTCUSDT','ETHUSDT','1000PEPEUSDT','WIFUSDT','1000BONKUSDT','1000FLOKIUSDT','MOODENGUSDT','PENGUUSDT','MEMEUSDT','BRETTUSDT','TURBOUSDT','1000CHEEMSUSDT','MEWUSDT','DOGEUSDT'];
 
 function renderTopTickers(prices){
   let h='';
@@ -34,6 +34,35 @@ function renderTopTickers(prices){
     h+=`<div class="top-ticker"><span class="sym">${s}</span><span class="price${flash}">${fmt(d.price,4)}</span><span class="ch ${cls}">${sign}${d.change24h.toFixed(2)}%</span></div>`;
   }
   $('#topTickers').innerHTML=h;
+}
+
+// ===== TABS =====
+$$('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', function(){
+    $$('.tab-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    $$('.tab-content').forEach(c => c.classList.remove('active'));
+    $('#tab-' + this.dataset.tab).classList.add('active');
+    if(balanceChart) balanceChart.resize();
+  });
+});
+
+// ===== TRADE FORM TOGGLE =====
+function toggleTradeForm(){
+  const form = $('#tradeForm');
+  const chev = $('#tradeChevron');
+  const isOpen = form.classList.contains('open');
+  if(isOpen){
+    form.classList.remove('open');
+    form.classList.add('collapse');
+    chev.classList.remove('open');
+    chev.textContent = '▼';
+  } else {
+    form.classList.remove('collapse');
+    form.classList.add('open');
+    chev.classList.add('open');
+    chev.textContent = '▲';
+  }
 }
 
 // ===== FIREBASE LISTENERS =====
@@ -79,13 +108,16 @@ function initFB(){
 
 // ===== PORTFOLIO =====
 function renderPortfolio(p){
-  $('#balance').textContent=fmt(p.balance,2);
+  const equity = p.equity || p.balance;
+  $('#balance').textContent=fmt(equity,2);
   $('#initialBalance').textContent=fmt(p.initialBalance,2);
-  const sign=p.totalPnl>=0?'+':'';
-  const cls=p.totalPnl>=0?'up':'down';
-  $('#pnlSummary').innerHTML=`<span class="${cls}">${sign}${fmt(Math.abs(p.totalPnl),2)} (${sign}${p.totalPnlPercent.toFixed(2)}%)</span>`;
-  $('#pnlBar').style.width=Math.max(0,Math.min(100,50+p.totalPnlPercent*2))+'%';
-  $('#pnlBar').style.background=p.totalPnl>=0?'var(--green)':'var(--red)';
+  const pnlUnrealized = p.unrealizedPnl || 0;
+  const signPnl = pnlUnrealized>=0?'+':'';
+  const clsPnl = pnlUnrealized>=0?'up':'down';
+  const equityPnlPercent = p.equityPnlPercent || 0;
+  $('#pnlSummary').innerHTML=`<span class="${clsPnl}">${signPnl}${fmt(Math.abs(pnlUnrealized),2)} (${signPnl}${equityPnlPercent.toFixed(2)}%)</span>`;
+  $('#pnlBar').style.width=Math.max(0,Math.min(100,50+equityPnlPercent*2))+'%';
+  $('#pnlBar').style.background=equityPnlPercent>=0?'var(--green)':'var(--red)';
 
   let used=0;
   Object.values(userPositions).forEach(x=>{if(x.status==='OPEN')used+=x.initialMargin;});

@@ -66,6 +66,7 @@ async function openMarketOrder({ symbol, side, quantity, leverage = 1 }) {
 
   await update('portfolio', {
     balance: parseFloat(newBalance.toFixed(8)),
+    equity: parseFloat(newBalance.toFixed(8)),
     openPositions: openCount,
     lastUpdated: Date.now(),
   });
@@ -153,6 +154,8 @@ async function updateUnrealizedPnl() {
     if (openPositions.length === 0) return;
 
     let updated = 0;
+    let totalUnrealizedPnl = 0;
+    let totalMargin = 0;
     for (const [id, pos] of openPositions) {
       const price = getPrice(pos.symbol);
       if (!price) continue;
@@ -167,17 +170,51 @@ async function updateUnrealizedPnl() {
 
     const pnlPercent = (pnl / pos.initialMargin) * 100;
 
+    const peakPnlPercent = Math.max(pos.peakPnlPercent || 0, pnlPercent);
+    const trailDistance = parseFloat(process.env.TRAIL_DISTANCE || '1');
+
+    let autoClose = false;
+    let closeReason = '';
+
+    if (pnlPercent >= 5) {
+      autoClose = true;
+      closeReason = 'Take-profit 5%';
+    } else if (peakPnlPercent >= 2 && (peakPnlPercent - pnlPercent) > trailDistance) {
+      autoClose = true;
+      closeReason = `Reversión detectada (peak ${peakPnlPercent.toFixed(2)}% → ${pnlPercent.toFixed(2)}%)`;
+    }
+
+    totalUnrealizedPnl += pnl;
+    totalMargin += pos.initialMargin;
+
     await update(`positions/${id}`, {
       markPrice: price,
       unrealizedPnl: parseFloat(pnl.toFixed(8)),
       unrealizedPnlPercent: parseFloat(pnlPercent.toFixed(2)),
+      peakPnlPercent: parseFloat(peakPnlPercent.toFixed(2)),
+    });
+
+    if (autoClose) {
+      const trade = await closePosition(id);
+      console.log(`[Auto-close] ${closeReason} | ${pos.symbol} | PnL: $${trade.pnl.toFixed(4)} (${trade.pnlPercent.toFixed(2)}%)`);
+    }
+  }
+
+  const portfolio = await readRef(refs.portfolio);
+  if (portfolio) {
+    const equity = portfolio.balance + totalUnrealizedPnl;
+    const totalEquityPnlPercent = ((totalUnrealizedPnl + (portfolio.totalPnl || 0)) / portfolio.initialBalance) * 100;
+    await update('portfolio', {
+      equity: parseFloat(equity.toFixed(8)),
+      unrealizedPnl: parseFloat(totalUnrealizedPnl.toFixed(8)),
+      equityPnlPercent: parseFloat(totalEquityPnlPercent.toFixed(2)),
     });
   }
 
-  // Log cada 30 ejecuciones (~1 minuto)
+  // Log cada 30 ejecuciones (~30s)
   updateUnrealizedPnl._count = (updateUnrealizedPnl._count || 0) + 1;
   if (updateUnrealizedPnl._count % 30 === 0) {
-    console.log(`[P&L] ${updated}/${openPositions.length} posiciones actualizadas`);
+    console.log(`[P&L] ${updated}/${openPositions.length} posiciones actualizadas | PnL no realizado: $${totalUnrealizedPnl.toFixed(4)}`);
   }
   } catch (err) {
     console.error('[P&L] Error:', err.message);
