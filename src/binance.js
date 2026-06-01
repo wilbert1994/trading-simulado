@@ -48,7 +48,13 @@ function parseTicker(t) {
 
 function httpGet(url) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { timeout: 8000 }, (res) => {
+    const req = https.get(url, {
+      timeout: 8000,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'TradingSimulado/1.0',
+      },
+    }, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
@@ -93,7 +99,7 @@ function scheduleReconnect() {
 async function fetchFromBinance(symbol) {
   try {
     const t = await httpGet(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`);
-    console.log(`[Binance] ${symbol} OK`);
+    if (!t.lastPrice && t.code) throw new Error(`Binance error ${t.code}: ${t.msg}`);
     return {
       price: parseFloat(t.lastPrice),
       change24h: parseFloat(t.priceChangePercent || 0),
