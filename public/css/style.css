@@ -159,3 +159,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .up{color:var(--green)}.down{color:var(--red)}.gold{color:var(--gold)}
 .mono{font-family:var(--mono)}
 .hidden{display:none!important}
+
+/* PRICE FLASH */
+.top-ticker .flash-up{animation:flashUp .6s ease-out}
+.top-ticker .flash-down{animation:flashDown .6s ease-out}
+@keyframes flashUp{
+  0%{text-shadow:0 0 12px var(--green),0 0 24px var(--green);color:#fff}
+  100%{text-shadow:none;color:var(--text)}
+}
+@keyframes flashDown{
+  0%{text-shadow:0 0 12px var(--red),0 0 24px var(--red);color:#fff}
+  100%{text-shadow:none;color:var(--text)}
+}

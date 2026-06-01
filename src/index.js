@@ -90,9 +90,9 @@ async function processTradeRequests() {
           if (!autoTradeEnabled) {
             strategy = new SimpleStrategy();
             autoTradeEnabled = true;
-            strategyInterval = setInterval(runStrategy, 2000);
-            strategyLog('Estrategia INICIADA - buscando dips de -0.03% cada 2s, solo LONG, $200/trade', 'start');
-            console.log('[Estrategia] Estrategia INICIADA - evaluando cada 10s');
+            strategyInterval = setInterval(runStrategy, 1000);
+            strategyLog('Estrategia INICIADA - buscando dips de -0.03% cada 1s, solo LONG, $200/trade', 'start');
+            console.log('[Estrategia] Estrategia INICIADA - evaluando cada 1s');
             runStrategy(); // primera evaluación inmediata
           }
           await set('config', {
@@ -281,8 +281,8 @@ app.post('/api/strategy/start', async (req, res) => {
   if (autoTradeEnabled) return res.json({ status: 'already_running' });
   strategy = new SimpleStrategy();
   autoTradeEnabled = true;
-  strategyInterval = setInterval(runStrategy, 2000);
-  strategyLog('Estrategia INICIADA - buscando dips cada 2s, $200/trade', 'start');
+  strategyInterval = setInterval(runStrategy, 1000);
+  strategyLog('Estrategia INICIADA - buscando dips cada 1s, $200/trade', 'start');
   await set('config', {
     symbols: getAllSymbols(),
     strategyActive: true,
@@ -328,7 +328,7 @@ async function start() {
   });
   console.log(`[Server] Símbolos: ${getAllSymbols().join(', ')}`);
   startPricePolling();
-  setInterval(updateUnrealizedPnl, 2000);
+  setInterval(updateUnrealizedPnl, 1000);
   setInterval(processTradeRequests, 1000);
   // Heartbeat cada 10s
   setInterval(async () => {

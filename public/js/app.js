@@ -3,6 +3,7 @@ let balanceHistory = [];
 let allPrices = {};
 let userPositions = {};
 let userPortfolio = {};
+let prevPrices = {};
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
@@ -23,7 +24,14 @@ function renderTopTickers(prices){
     if(!d) continue;
     const cls=d.change24h>=0?'up':'down';
     const sign=d.change24h>=0?'+':'';
-    h+=`<div class="top-ticker"><span class="sym">${s}</span><span class="price">${fmt(d.price,4)}</span><span class="ch ${cls}">${sign}${d.change24h.toFixed(2)}%</span></div>`;
+    const prev=prevPrices[s];
+    let flash='';
+    if(prev!==undefined){
+      if(d.price>prev)flash=' flash-up';
+      else if(d.price<prev)flash=' flash-down';
+    }
+    prevPrices[s]=d.price;
+    h+=`<div class="top-ticker"><span class="sym">${s}</span><span class="price${flash}">${fmt(d.price,4)}</span><span class="ch ${cls}">${sign}${d.change24h.toFixed(2)}%</span></div>`;
   }
   $('#topTickers').innerHTML=h;
 }
@@ -197,7 +205,7 @@ function initChart(){
       plugins:{legend:{display:false}},
       scales:{
         x:{display:false,grid:{display:false}},
-        y:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{callback:v=>fmt(v,0),color:var(--text3)}}
+        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{callback:v=>fmt(v,0),color:'#555b6b'}}
       }
     }
   });
@@ -217,5 +225,5 @@ document.addEventListener('DOMContentLoaded',()=>{
   initChart();
   initFB();
   $$('.quick-amounts button').forEach(b=>b.addEventListener('click',function(){setUsdt(parseInt(this.textContent))}));
-  setInterval(()=>{if(balanceChart)balanceChart.update('none')},3000);
+  setInterval(()=>{if(balanceChart)balanceChart.update('none')},1000);
 });
