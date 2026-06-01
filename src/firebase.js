@@ -71,7 +71,11 @@ async function initDB() {
       initialBalance,
       totalPnl: 0,
       totalPnlPercent: 0,
+      usedMargin: 0,
       openPositions: 0,
+      equity: initialBalance,
+      unrealizedPnl: 0,
+      equityPnlPercent: 0,
       lastUpdated: Date.now(),
     });
     console.log(`[Firebase] Portafolio inicializado con $${initialBalance}`);

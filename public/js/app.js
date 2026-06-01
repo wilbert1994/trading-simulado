@@ -109,20 +109,20 @@ function initFB(){
 // ===== PORTFOLIO =====
 function renderPortfolio(p){
   const equity = p.equity || p.balance;
-  $('#balance').textContent=fmt(equity,2);
-  $('#initialBalance').textContent=fmt(p.initialBalance,2);
-  const pnlUnrealized = p.unrealizedPnl || 0;
-  const signPnl = pnlUnrealized>=0?'+':'';
-  const clsPnl = pnlUnrealized>=0?'up':'down';
+  const unrealizedPnl = p.unrealizedPnl || 0;
+  const signPnl = unrealizedPnl>=0?'+':'';
+  const clsPnl = unrealizedPnl>=0?'up':'down';
   const equityPnlPercent = p.equityPnlPercent || 0;
-  $('#pnlSummary').innerHTML=`<span class="${clsPnl}">${signPnl}${fmt(Math.abs(pnlUnrealized),2)} (${signPnl}${equityPnlPercent.toFixed(2)}%)</span>`;
+  const usedMargin = p.usedMargin || 0;
+  const available = p.balance - usedMargin;
+
+  $('#balance').textContent=fmt(equity,2);
+  $('#initialBalance').textContent=fmt(p.balance,2);
+  $('#pnlSummary').innerHTML=`<span class="${clsPnl}">${signPnl}${fmt(Math.abs(unrealizedPnl),2)} (${signPnl}${equityPnlPercent.toFixed(2)}%)</span>`;
   $('#pnlBar').style.width=Math.max(0,Math.min(100,50+equityPnlPercent*2))+'%';
   $('#pnlBar').style.background=equityPnlPercent>=0?'var(--green)':'var(--red)';
-
-  let used=0;
-  Object.values(userPositions).forEach(x=>{if(x.status==='OPEN')used+=x.initialMargin;});
-  $('#usedMargin').textContent=fmt(used,2);
-  $('#availableBalance').textContent=fmt(p.balance,2);
+  $('#usedMargin').textContent=fmt(usedMargin,2);
+  $('#availableBalance').textContent=fmt(available,2);
   updateChart(p);
 }
 
