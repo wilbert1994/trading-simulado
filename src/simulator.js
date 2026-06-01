@@ -142,17 +142,21 @@ async function closePosition(positionId) {
 }
 
 async function updateUnrealizedPnl() {
-  const positions = await getUserPositions();
-  if (!positions) return;
+  try {
+    const positions = await getUserPositions();
+    if (!positions) {
+      console.log('[P&L] No hay posiciones en Firebase');
+      return;
+    }
 
-  const openPositions = Object.entries(positions).filter(([, p]) => p.status === 'OPEN');
-  if (openPositions.length === 0) return;
+    const openPositions = Object.entries(positions).filter(([, p]) => p.status === 'OPEN');
+    if (openPositions.length === 0) return;
 
-  let updated = 0;
-  for (const [id, pos] of openPositions) {
-    const price = getPrice(pos.symbol);
-    if (!price) continue;
-    updated++;
+    let updated = 0;
+    for (const [id, pos] of openPositions) {
+      const price = getPrice(pos.symbol);
+      if (!price) continue;
+      updated++;
 
     let pnl;
     if (pos.side === 'LONG') {
@@ -174,6 +178,9 @@ async function updateUnrealizedPnl() {
   updateUnrealizedPnl._count = (updateUnrealizedPnl._count || 0) + 1;
   if (updateUnrealizedPnl._count % 30 === 0) {
     console.log(`[P&L] ${updated}/${openPositions.length} posiciones actualizadas`);
+  }
+  } catch (err) {
+    console.error('[P&L] Error:', err.message);
   }
 }
 

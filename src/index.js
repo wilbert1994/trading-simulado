@@ -328,6 +328,7 @@ async function start() {
   });
   console.log(`[Server] Símbolos: ${getAllSymbols().join(', ')}`);
   startPricePolling();
+  setInterval(updateUnrealizedPnl, 2000);
   setInterval(processTradeRequests, 1000);
   // Heartbeat cada 10s
   setInterval(async () => {
