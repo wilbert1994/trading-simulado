@@ -4,7 +4,7 @@ const path = require('path');
 require('dotenv').config();
 
 const { initDB, refs, readRef, get, set, update, remove } = require('./firebase');
-const { startPricePolling, getPrice, getAllPrices, getAllSymbols } = require('./binance');
+const { startPricePolling, stopPricePolling, getPrice, getAllPrices, getAllSymbols } = require('./binance');
 const {
   openMarketOrder,
   closePosition,
@@ -33,7 +33,7 @@ function strategyLog(msg, type) {
     timeStr: new Date().toLocaleTimeString(),
   };
   console.log(`[Estrategia] ${msg}`);
-  set(`strategyLog/${Date.now()}`, entry).catch(() => {});
+  set(`strategyLog/${Date.now()}`, entry).catch(e => console.error('[StrategyLog]', e.message));
 }
 
 async function processTradeRequests() {
@@ -48,7 +48,8 @@ async function processTradeRequests() {
         await update(`tradeRequests/${reqId}`, { status: 'processing' });
 
         if (req.type === 'OPEN_MARKET') {
-          const price = getPrice(req.symbol) || 0;
+          const price = getPrice(req.symbol);
+          if (!price || price <= 0) throw new Error(`No hay precio disponible para ${req.symbol}`);
           const usdtAmount = parseFloat(req.usdtAmount || 0);
           const quantity = usdtAmount > 0
             ? parseFloat((usdtAmount / price).toFixed(6))
@@ -129,7 +130,7 @@ async function processTradeRequests() {
       }
     }
   } catch (err) {
-    // Firebase polling might fail temporarily, retry next interval
+    console.error('[TradeRequests] Error:', err.message);
   }
 }
 
@@ -163,7 +164,7 @@ async function runStrategy() {
         }
         const side = 'LONG';
         const tradeAmount = 200;
-        const quantity = parseFloat((tradeAmount / result.price).toFixed(6));
+        const quantity = result.price > 0 ? parseFloat((tradeAmount / result.price).toFixed(6)) : 0;
         if (quantity > 0) {
           await openMarketOrder({ symbol, side, quantity, leverage: 1 });
           const coinQty = quantity.toFixed(symbol.startsWith('1000') ? 0 : 4);
@@ -206,7 +207,7 @@ async function runStrategy() {
         const keys = Object.keys(logs).sort((a, b) => Number(a) - Number(b));
         if (keys.length > 100) {
           for (const k of keys.slice(0, keys.length - 100)) {
-            remove(`strategyLog/${k}`).catch(() => {});
+              remove(`strategyLog/${k}`).catch(e => console.error('[LogCleanup]', e.message));
           }
         }
       }
@@ -214,13 +215,17 @@ async function runStrategy() {
   }
 }
 
-// Force price fetch for debugging
+// Force price fetch for debugging (exports fetchPrices for this)
 app.get('/api/debug/fetch-prices', async (req, res) => {
-  const { fetchPrices, getAllPrices } = require('./binance');
-  await fetchPrices();
-  const prices = getAllPrices();
-  const valid = Object.entries(prices).filter(([,v]) => v && v.price).length;
-  res.json({ valid: `${valid}/${Object.keys(prices).length}`, prices });
+  try {
+    const { fetchPrices, getAllPrices } = require('./binance');
+    await fetchPrices();
+    const prices = getAllPrices();
+    const valid = Object.entries(prices).filter(([,v]) => v && v.price).length;
+    res.json({ valid: `${valid}/${Object.keys(prices).length}`, prices });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/health', (req, res) => {
@@ -265,7 +270,8 @@ app.post('/api/trade/open', async (req, res) => {
     if (!quantity && !usdtAmount) {
       return res.status(400).json({ error: 'Requerido: quantity o usdtAmount' });
     }
-    const price = getPrice(symbol) || 0;
+    const price = getPrice(symbol);
+    if (!price || price <= 0) return res.status(400).json({ error: `No hay precio disponible para ${symbol}` });
     const qty = usdtAmount > 0
       ? parseFloat((usdtAmount / price).toFixed(6))
       : parseFloat(quantity || 0);
@@ -336,13 +342,27 @@ async function start() {
   });
   console.log(`[Server] Símbolos: ${getAllSymbols().join(', ')}`);
   startPricePolling();
-  setInterval(updateUnrealizedPnl, 1000);
-  setInterval(processTradeRequests, 1000);
-  // Heartbeat cada 10s
-  setInterval(async () => {
-    await set('serverStatus/online', true).catch(() => {});
-    await set('serverStatus/lastBeat', Date.now()).catch(() => {});
-  }, 10000);
+
+  const intervals = [
+    setInterval(updateUnrealizedPnl, 1000),
+    setInterval(processTradeRequests, 1000),
+    setInterval(async () => {
+      await set('serverStatus/online', true).catch(() => {});
+      await set('serverStatus/lastBeat', Date.now()).catch(() => {});
+    }, 10000),
+  ];
+
+  // Cleanup on shutdown
+  const cleanup = async () => {
+    console.log('[Server] Apagando...');
+    await set('serverStatus/online', false).catch(() => {});
+    intervals.forEach(clearInterval);
+    stopPricePolling();
+    process.exit(0);
+  };
+  process.on('SIGTERM', cleanup);
+  process.on('SIGINT', cleanup);
+
   app.listen(PORT, () => {
     console.log(`[Server] API en http://localhost:${PORT}`);
     console.log('[Server] Simulador de trading listo');

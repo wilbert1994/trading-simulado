@@ -1,10 +1,10 @@
 const { v4: uuidv4 } = require('uuid');
-const { get, set, update, push, remove, refs, readRef } = require('./firebase');
+const { get, set, update, remove, refs, readRef } = require('./firebase');
 const { getPrice } = require('./binance');
 
 async function getPortfolio() {
   const portfolio = await readRef(refs.portfolio);
-  return portfolio || { balance: parseFloat(process.env.INITIAL_BALANCE || '10000'), initialBalance: parseFloat(process.env.INITIAL_BALANCE || '10000'), totalPnl: 0, totalPnlPercent: 0, usedMargin: 0, openPositions: 0 };
+  return portfolio || { balance: parseFloat(process.env.INITIAL_BALANCE || '2000'), initialBalance: parseFloat(process.env.INITIAL_BALANCE || '2000'), totalPnl: 0, totalPnlPercent: 0, usedMargin: 0, openPositions: 0 };
 }
 
 async function getBalance() {
@@ -219,7 +219,7 @@ async function resetSimulator() {
   await remove('positions');
   await remove('trades');
   await remove('orders');
-  const initialBalance = parseFloat(process.env.INITIAL_BALANCE || '10000');
+  const initialBalance = parseFloat(process.env.INITIAL_BALANCE || '2000');
   await set('portfolio', {
     balance: initialBalance,
     initialBalance,

@@ -45,7 +45,7 @@ function connectWebSocket() {
         if (msg.stream && msg.data) {
           const sym = msg.stream.split('@')[0].toUpperCase();
           priceCache[sym] = parseTicker(msg.data);
-          set(`prices/${sym}`, priceCache[sym]).catch(() => {});
+          set(`prices/${sym}`, priceCache[sym]).catch(e => console.error('[Binance] Firebase:', e.message));
         }
       } catch {}
     });
@@ -76,9 +76,9 @@ async function fetchFromBinance() {
         } catch { return null; }
       }));
       for (const r of results) {
-        if (r.status === 'fulfilled' && r.value) {
-          const d = r.value; priceCache[d.sym] = { ...d, timestamp: Date.now() };
-          set(`prices/${d.sym}`, priceCache[d.sym]).catch(() => {});
+        if (r && r.sym) {
+          priceCache[r.sym] = { ...r, timestamp: Date.now() };
+          set(`prices/${r.sym}`, priceCache[r.sym]).catch(e => console.error('[Binance] Firebase:', e.message));
           ok++;
         }
       }
@@ -143,4 +143,4 @@ function getPrice(symbol) {
 function getAllPrices() { return { ...priceCache }; }
 function getAllSymbols() { return [...symbols]; }
 
-module.exports = { startPricePolling, stopPricePolling, getPrice, getAllPrices, getAllSymbols };
+module.exports = { startPricePolling, stopPricePolling, getPrice, getAllPrices, getAllSymbols, fetchPrices };
