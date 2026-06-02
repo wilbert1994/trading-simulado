@@ -151,7 +151,7 @@ function renderPositions(positions){
         <div class="pos-detail"><span class="lbl">Mark</span><span class="val">${fmt(mark,6)}</span></div>
         <div class="pos-detail"><span class="lbl">Invertido</span><span class="val">${fmt(p.initialMargin,2)}</span></div>
         <div class="pos-detail"><span class="lbl">Cantidad</span><span class="val">${fmtN(p.quantity,0)}</span></div>
-        <div class="pos-detail"><span class="lbl">P&L</span><span class="val pnl ${pc}">${ps}${fmt(Math.abs(p.unrealizedPnl),4)} (${ps}${p.unrealizedPnlPercent.toFixed(2)}%)</span></div>
+        <div class="pos-detail"><span class="lbl">P&L</span><span class="val pnl ${pc}">${ps}${fmt(Math.abs(p.unrealizedPnl),4)} (${ps}${(p.unrealizedPnlPercent||0).toFixed(2)}%)</span></div>
         <div class="pos-detail"><span class="lbl">Liquidación</span><span class="val down">${fmt(p.liquidationPrice,6)}</span></div>
       </div>
     </div>`;

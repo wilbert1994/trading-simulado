@@ -75,11 +75,12 @@ async function processTradeRequests() {
         } else if (req.type === 'CLOSE_ALL') {
           const positions = await getUserPositions();
           const openList = Object.values(positions).filter(p => p.status === 'OPEN');
-          const results = [];
-          for (const pos of openList) results.push(await closePosition(pos.id));
+          const results = await Promise.allSettled(openList.map(p => closePosition(p.id)));
+          const closedTrades = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+          const errors = results.filter(r => r.status === 'rejected').map(r => r.reason.message);
           await update(`tradeRequests/${reqId}`, {
             status: 'completed',
-            result: { success: true, closedTrades: results },
+            result: { success: true, closedTrades, errors: errors.length > 0 ? errors : undefined },
             completedAt: Date.now(),
           });
         } else if (req.type === 'RESET') {
@@ -143,7 +144,12 @@ async function runStrategy() {
     return;
   }
 
-  strategyLog(`Escaneando ${symbols.length} pares`, 'info');
+  // Only log scanning once per minute to avoid flood
+  const nowMin = Math.floor(Date.now() / 60000);
+  if (nowMin !== lastMinuteLog) {
+    strategyLog(`Escaneando ${symbols.length} pares`, 'info');
+  }
+
   let signals = 0;
   let minProgress = Infinity;
 
@@ -176,17 +182,16 @@ async function runStrategy() {
     }
   }
 
-  if (minProgress < 6) {
+  if (minProgress < 6 && nowMin !== lastMinuteLog) {
     strategyLog(`Acumulando datos... (${minProgress}/6)`, 'info');
   }
 
   if (signals === 0) {
     // Log resumido cada minuto
-    const now = Math.floor(Date.now() / 60000);
-    if (lastMinuteLog !== now) {
+    if (lastMinuteLog !== nowMin) {
       const sample = symbols.slice(0, 3).map(s => `${s}:$${prices[s]?.price?.toFixed(4) || '?'}`).join(' ');
       strategyLog(`Sin señales. ${sample}`, 'info');
-      lastMinuteLog = now;
+      lastMinuteLog = nowMin;
     }
   }
 

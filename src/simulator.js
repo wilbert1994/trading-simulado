@@ -62,8 +62,8 @@ async function openMarketOrder({ symbol, side, quantity, leverage = 1 }) {
     openTime: Date.now(),
     status: 'OPEN',
     liquidationPrice: side.toUpperCase() === 'LONG'
-      ? price * (1 - 1 / leverage + 0.01)
-      : price * (1 + 1 / leverage - 0.01),
+      ? (leverage <= 1 ? 0 : price * (1 - 1 / leverage + 0.01))
+      : (leverage <= 1 ? Infinity : price * (1 + 1 / leverage - 0.01)),
   };
 
   await set(`positions/${positionId}`, position);
