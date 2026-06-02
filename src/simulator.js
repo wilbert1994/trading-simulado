@@ -140,85 +140,49 @@ async function closePosition(positionId) {
   return trade;
 }
 
+// Only handles auto-close logic, does NOT write portfolio fields (daemon does that)
 async function updateUnrealizedPnl() {
   try {
     const positions = await getUserPositions();
     if (!positions) return;
 
     const openPositions = Object.entries(positions).filter(([, p]) => p.status === 'OPEN');
-    if (openPositions.length === 0) {
-      // No open positions, clear portfolio PnL fields
-      const portfolio = await getPortfolio();
-      if (portfolio && portfolio.unrealizedPnl !== 0) {
-        await update('portfolio', {
-          equity: portfolio.balance,
-          usedMargin: 0,
-          unrealizedPnl: 0,
-          equityPnlPercent: portfolio.totalPnlPercent || 0,
-          lastUpdated: Date.now(),
-        });
-      }
-      return;
-    }
-
-    let totalUnrealizedPnl = 0;
-    let totalMargin = 0;
+    if (openPositions.length === 0) return;
 
     for (const [id, pos] of openPositions) {
-      // Read PnL already calculated by the daemon (or use local price cache)
       const price = getPrice(pos.symbol);
-      if (price) {
-        const pnl = pos.side === 'LONG'
-          ? (price - pos.entryPrice) * pos.quantity
-          : (pos.entryPrice - price) * pos.quantity;
-        const pnlPercent = (pnl / pos.initialMargin) * 100;
-        const peakPnlPercent = Math.max(pos.peakPnlPercent || 0, pnlPercent);
-        const trailDistance = parseFloat(process.env.TRAIL_DISTANCE || '1');
+      if (!price) continue;
 
-        await update(`positions/${id}`, {
-          markPrice: price,
-          unrealizedPnl: parseFloat(pnl.toFixed(8)),
-          unrealizedPnlPercent: parseFloat(pnlPercent.toFixed(2)),
-          peakPnlPercent: parseFloat(peakPnlPercent.toFixed(2)),
-        });
+      const pnl = pos.side === 'LONG'
+        ? (price - pos.entryPrice) * pos.quantity
+        : (pos.entryPrice - price) * pos.quantity;
+      const pnlPercent = (pnl / pos.initialMargin) * 100;
+      const peakPnlPercent = Math.max(pos.peakPnlPercent || 0, pnlPercent);
+      const trailDistance = parseFloat(process.env.TRAIL_DISTANCE || '1');
 
-        totalUnrealizedPnl += pnl;
-        totalMargin += pos.initialMargin;
-
-        // Auto-close logic
-        let autoClose = false;
-        if (pnlPercent >= 5) {
-          autoClose = true;
-        } else if (peakPnlPercent >= 2 && (peakPnlPercent - pnlPercent) > trailDistance) {
-          autoClose = true;
-        }
-        if (autoClose) {
-          const trade = await closePosition(id);
-          console.log(`[Auto-close] ${pos.symbol} | PnL: $${trade.pnl.toFixed(4)} (${trade.pnlPercent.toFixed(2)}%)`);
-        }
-      } else {
-        // No local price, use markPrice from daemon
-        totalUnrealizedPnl += pos.unrealizedPnl || 0;
-        totalMargin += pos.initialMargin || 0;
-      }
-    }
-
-    const portfolio = await getPortfolio();
-    if (portfolio) {
-      const equity = portfolio.balance + totalUnrealizedPnl;
-      const totalEquityPnlPercent = ((totalUnrealizedPnl + (portfolio.totalPnl || 0)) / portfolio.initialBalance) * 100;
-      await update('portfolio', {
-        equity: parseFloat(equity.toFixed(8)),
-        usedMargin: parseFloat(totalMargin.toFixed(8)),
-        unrealizedPnl: parseFloat(totalUnrealizedPnl.toFixed(8)),
-        equityPnlPercent: parseFloat(totalEquityPnlPercent.toFixed(2)),
-        lastUpdated: Date.now(),
+      await update(`positions/${id}`, {
+        markPrice: price,
+        unrealizedPnl: parseFloat(pnl.toFixed(8)),
+        unrealizedPnlPercent: parseFloat(pnlPercent.toFixed(2)),
+        peakPnlPercent: parseFloat(peakPnlPercent.toFixed(2)),
       });
+
+      // Auto-close check
+      let autoClose = false;
+      if (pnlPercent >= 5) {
+        autoClose = true;
+      } else if (peakPnlPercent >= 2 && (peakPnlPercent - pnlPercent) > trailDistance) {
+        autoClose = true;
+      }
+      if (autoClose) {
+        const trade = await closePosition(id);
+        console.log(`[Auto-close] ${pos.symbol} | PnL: $${trade.pnl.toFixed(4)} (${trade.pnlPercent.toFixed(2)}%)`);
+      }
     }
 
     updateUnrealizedPnl._count = (updateUnrealizedPnl._count || 0) + 1;
     if (updateUnrealizedPnl._count % 30 === 0) {
-      console.log(`[P&L] ${openPositions.length} posiciones | PnL no realizado: $${totalUnrealizedPnl.toFixed(4)}`);
+      console.log(`[P&L] ${openPositions.length} posiciones actualizadas`);
     }
   } catch (err) {
     console.error('[P&L] Error:', err.message);
