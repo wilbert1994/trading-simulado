@@ -214,12 +214,24 @@ function updateEstimate(){
 }
 
 function openTrade(){
-  const p={symbol:$('#tradeSymbol').value,side:'LONG',usdtAmount:parseFloat($('#tradeUsdt').value),leverage:parseFloat($('#tradeLeverage').value)};
+  const p={symbol:$('#tradeSymbol').value,side:'LONG',usdtAmount:parseFloat($('#tradeUsdt').value)||0,leverage:parseFloat($('#tradeLeverage').value)||1};
   if(!p.usdtAmount||p.usdtAmount<=0){return}
-  sendReq({type:'OPEN_MARKET',...p});
+  fetch('/api/trade/open', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(p)
+  }).then(r => r.json()).then(d => {
+    if(!d.success) alert(d.error || 'Error');
+  }).catch(() => {});
 }
 
-function closeTrade(id){sendReq({type:'CLOSE_POSITION',positionId:id})}
+function closeTrade(id){
+  fetch('/api/trade/close', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({positionId: id})
+  }).catch(() => {});
+}
 function closeAllPositions(){sendReq({type:'CLOSE_ALL'})}
 function resetSimulator(){if(confirm('¿Reiniciar simulador?'))sendReq({type:'RESET'})}
 function toggleStrategy(a){
