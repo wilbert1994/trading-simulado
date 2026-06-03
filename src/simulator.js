@@ -89,13 +89,14 @@ async function closePosition(positionId) {
   const closePrice = price || position.markPrice;
 
   let pnl;
-  const fee = position.entryPrice * position.quantity * 0.0004; // 0.04% taker fee
+  const entryFee = position.entryPrice * position.quantity * 0.0004; // 0.04% taker entry
+  const exitFee = closePrice * position.quantity * 0.0004; // 0.04% taker exit
   if (position.side === 'LONG') {
     pnl = (closePrice - position.entryPrice) * position.quantity;
   } else {
     pnl = (position.entryPrice - closePrice) * position.quantity;
   }
-  pnl -= fee * 2; // entry + exit fee
+  pnl -= entryFee + exitFee;
   const pnlPercent = (pnl / position.initialMargin) * 100;
 
   const portfolio = await getPortfolio();
@@ -163,16 +164,18 @@ async function updateUnrealizedPnl() {
       const pnl = pos.side === 'LONG'
         ? (price - pos.entryPrice) * pos.quantity
         : (pos.entryPrice - price) * pos.quantity;
-      const pnlPercent = (pnl / pos.initialMargin) * 100;
+      const fee = pos.entryPrice * pos.quantity * 0.0004; // 0.04% entry
+      const unrealizedPnl = pnl - fee; // entry fee already "paid"
+      const pnlPercent = (unrealizedPnl / pos.initialMargin) * 100;
       const peakPnlPercent = Math.max(pos.peakPnlPercent || 0, pnlPercent);
       const trailDistance = parseFloat(process.env.TRAIL_DISTANCE || '1');
 
-      totalUnrealizedPnl += pnl;
+      totalUnrealizedPnl += unrealizedPnl;
       totalMargin += pos.initialMargin;
 
       await update(`positions/${id}`, {
         markPrice: price,
-        unrealizedPnl: parseFloat(pnl.toFixed(8)),
+        unrealizedPnl: parseFloat(unrealizedPnl.toFixed(8)),
         unrealizedPnlPercent: parseFloat(pnlPercent.toFixed(2)),
         peakPnlPercent: parseFloat(peakPnlPercent.toFixed(2)),
       });

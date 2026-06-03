@@ -63,8 +63,8 @@ async function fetchFromBinance() {
   try {
     let ok = 0;
     // Batch in groups of 10 to avoid rate limiting
-    for (let i = 0; i < symbols.length; i += 10) {
-      const batch = symbols.slice(i, i + 10);
+    for (let i = 0; i < symbols.length; i += 20) {
+      const batch = symbols.slice(i, i + 20);
       const results = await Promise.all(batch.map(async (sym) => {
         try {
           const t = await httpGet(`${REST_URL}/fapi/v1/ticker/24hr?symbol=${sym}`, 4000);

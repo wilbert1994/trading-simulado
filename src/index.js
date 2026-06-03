@@ -93,7 +93,7 @@ async function processTradeRequests() {
             strategy = new SimpleStrategy();
             autoTradeEnabled = true;
             strategyInterval = setInterval(runStrategy, 1000);
-            strategyLog('Estrategia INICIADA - buscando dips de -0.03% cada 1s, solo LONG, $200/trade', 'start');
+            strategyLog('Estrategia INICIADA - buscando dips de -0.03% cada 1s, solo LONG, $10/trade', 'start');
             console.log('[Estrategia] Estrategia INICIADA - evaluando cada 1s');
             runStrategy(); // primera evaluación inmediata
           }
@@ -169,7 +169,7 @@ async function runStrategy() {
           continue;
         }
         const side = 'LONG';
-        const tradeAmount = 200;
+        const tradeAmount = 10;
         const quantity = result.price > 0 ? parseFloat((tradeAmount / result.price).toFixed(6)) : 0;
         if (quantity > 0) {
           await openMarketOrder({ symbol, side, quantity, leverage: 1 });
@@ -301,7 +301,7 @@ app.post('/api/strategy/start', async (req, res) => {
   strategy = new SimpleStrategy();
   autoTradeEnabled = true;
   strategyInterval = setInterval(runStrategy, 1000);
-  strategyLog('Estrategia INICIADA - buscando dips cada 1s, $200/trade', 'start');
+  strategyLog('Estrategia INICIADA - buscando dips cada 1s, $10/trade', 'start');
   await set('config', {
     symbols: getAllSymbols(),
     strategyActive: true,
