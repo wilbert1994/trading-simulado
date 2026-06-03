@@ -89,11 +89,13 @@ async function closePosition(positionId) {
   const closePrice = price || position.markPrice;
 
   let pnl;
+  const fee = position.entryPrice * position.quantity * 0.0004; // 0.04% taker fee
   if (position.side === 'LONG') {
     pnl = (closePrice - position.entryPrice) * position.quantity;
   } else {
     pnl = (position.entryPrice - closePrice) * position.quantity;
   }
+  pnl -= fee * 2; // entry + exit fee
   const pnlPercent = (pnl / position.initialMargin) * 100;
 
   const portfolio = await getPortfolio();
